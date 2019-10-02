@@ -1,4 +1,5 @@
 .DS_Store
 *.tsv
 *.gz
+misc/*
 
