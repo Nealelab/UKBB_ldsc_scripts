@@ -1,0 +1,454 @@
+---
+title: "Defining UKB Round 2 significantly heritable phenotypes"
+date: "Last updated `r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+params:
+  datfile: "../results/round2_raw/h2_topline_conf_temp.tsv.gz"
+  cormat_bothsex: "../reference/both_sexes_resid_corrmat.csv"
+  cormat_male: "../reference/male_resid_corrmat.csv"
+  cormat_female: "../reference/female_resid_corrmat.csv"
+  ns_bothsex: "../reference/both_sexes_pairwise_complete_ns.csv"
+  ns_male: "../reference/male_pairwise_complete_ns.csv"
+  ns_female: "../reference/female_pairwise_complete_ns.csv"
+  outdir: "../results/round2_final"
+  outdate: "02Oct2019"
+  writeout: True
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align="center")
+# devtools::install_github("ropensci/plotly")
+require(plotly)
+require(DT)
+require(crosstalk)
+require(crosstool)
+require(Rmpfr)
+
+plotly_colors <- c(
+    '#1f77b4',  # muted blue
+    '#ff7f0e',  # safety orange
+    '#2ca02c',  # cooked asparagus green
+    '#d62728',  # brick red
+    '#9467bd',  # muted purple
+    '#8c564b',  # chestnut brown
+    '#e377c2',  # raspberry yogurt pink
+    '#7f7f7f',  # middle gray
+    '#bcbd22',  # curry yellow-green
+    '#17becf'   # blue-teal
+) # https://stackoverflow.com/questions/40673490/how-to-get-plotly-js-default-colors-list
+```
+
+<style type="text/css">
+div.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r data_load3, include=FALSE}
+dat_all <- read.delim(params$datfile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
+```
+
+<br>
+
+***
+
+Having established a [list of phenotypes where we have reasonable confidence](confidence.html) in the LDSR results, we can now address the question of which phenotypes are significantly heritable.
+
+# Distribution of $h^2_g$ results
+
+<div class="well">
+
+As an initial observation, the distribution of $h^2_g$ results does not appear fully null within any of the confidence levels. Especially strong results are observed among the high confidence phenotypes.
+
+```{r h2_qq, echo=F}
+
+dat_all$conf_simple <- NA
+dat_all$conf_simple[startsWith(dat_all$confidence, "none")] <- "none"
+dat_all$conf_simple[startsWith(dat_all$confidence, "low")] <- "low"
+dat_all$conf_simple[startsWith(dat_all$confidence, "med")] <- "medium"
+dat_all$conf_simple[startsWith(dat_all$confidence, "high")] <- "high"
+dat_all$conf_simple <- factor(dat_all$conf_simple, levels=c("none","low","medium","high"))
+
+
+dat_all$isBinary <- !is.na(dat_all$n_cases)
+dat_all$Neff <- dat_all$n
+dat_all$Neff[dat_all$isBinary] <- round( (4/((1/dat_all$n_cases)+(1/dat_all$n_controls)))[dat_all$isBinary], 2)
+dat_all$prevalence <- NA
+dat_all$prevalence[dat_all$isBinary] <- (dat_all$n_cases/dat_all$n)[dat_all$isBinary]
+
+qref_lo <- ppoints(sum(!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"))
+qref_med <- ppoints(sum(!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"))
+qref_hi <- ppoints(sum(!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"))
+
+pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low",],
+        y=~-log10(h2_p),
+        x=~-log10(qref_lo)[rank(h2_p)],
+        name="low",
+        type="scatter",
+        mode="markers",
+        hoverinfo="text",
+        text = ~paste0(
+          "Phenotype: ", description,
+          "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Effective N: ", Neff),
+        width=400, height=400
+        ) %>% add_markers(
+          data=dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium",],
+          y=~-log10(h2_p),
+          x=~-log10(qref_med)[rank(h2_p)],
+          name="medium",
+          type="scatter",
+          mode="markers",
+          hoverinfo="text",
+          text = ~paste0(
+            "Phenotype: ", description,
+            "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+            "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+            "<br>Effective N: ", Neff)
+        ) %>% add_markers(
+          data=dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high",],
+          y=~-log10(h2_p),
+          x=~-log10(qref_hi)[rank(h2_p)],
+          name="high",
+          type="scatter",
+          mode="markers",
+          hoverinfo="text",
+          text = ~paste0(
+            "Phenotype: ", description,
+            "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+            "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+            "<br>Effective N: ", Neff)
+        ) %>% add_trace(
+          x=-log10(qref_lo),
+          y=-log10(qref_lo),
+          showlegend=F,
+          type="scatter",
+          mode="lines",
+          hoverinfo="text",
+          text=""
+        ) %>% layout(
+          xaxis = list(title="Expected -log10(p)"),
+          yaxis = list(title="-log10(p) for SNP-h^2"),
+          margin=list(b=65)
+        )
+htmltools::div( pp, align="center" )
+```
+
+*Note:* Expected quantiles are computed within each confidence bin.
+
+Weaker p-values among the lower confidence phenotypes are not surprising given that most phenotypes in those bins have reduced confidence due to smaller sample sizes. This is especially true for the phenotypes designated as "medium" confidence due to potential sex biases or nonlinear ordinal codings, where the potential biases are unlikely to completely remove true signal from their GWAS. Conversely, it is not surprising that there are non-significant results among the high confidence phenotypes since the confidence level is not assigned based on the $h^2_g$ estimate, only based on expectations about the stability and potential biases in that estimate.
+
+```{r h2_dist, echo=F}
+pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple!="none",], 
+        y=~h2_liability,
+        x=~conf_simple,
+        split=~conf_simple,
+        type='violin',
+        box=list(visible=T),
+        meanline=list(visible=T),
+        width=800,
+        hoveron="points",
+        hoverinfo="text",
+        text=~description
+) %>% layout(
+  xaxis = list(title="confidence"),
+  yaxis = list(title="SNP-h^2 (liability)", range=c(-.2,.7)),
+  margin=list(b=65)
+)
+htmltools::div( pp, align="center" )
+```
+*Note:* Range resticted for visibility. Zoom out to see additional low confidence results above and below the plotted region.
+
+Noteably, the distribution of $h^2_g$ point estimates is similar across the confidence levels, albeit nosier in the low confidence set. 
+
+</div>
+
+<br>
+
+# Multiple testing correction
+
+Given the large number of phenotypes, it's important to account for multiple testing in defining significance for the $h^2_g$ estimates. Although we might be comfortable with a conventional Bonferroni correction for significance, this is complicated by two considerations:
+
+* Should we test low confidence results? (i.e. should phenotypes denoted as low confidence count towards the number of tests to be corrected for in the Bonferroni adjustment)
+* How should we address correlation between the phenotypes? We know many of the UK Bioank phenotypes are strongly correlated, and the Bonferroni significance threshold will be very conservative if we treat the test of those phenotypes as independent.
+
+<br> 
+
+## Estimating the effective number of independent tests
+
+<div class="well">
+
+Focusing on the question of *independent* tests, we can adopt the method of [Li et al. 2011](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3059433/) to estimate the number of effectively independent phenotypes ($M_{eff}$) based on the observed correlation between the phenotypes. Specifically, we compute $M_{eff} = M - \sum I(\lambda_i > 1)(\lambda_i-1)$ where $\lambda_i$ are the eigenvalues of the phenotypic correlation matrix. Thus asymptotically $M_{eff}=M$ when the phenotypes are independent (i.e. all $lambda_i=1$) and shrinks proportional to the amount of redundancy from correlation between phenotypes.
+
+
+```{r build_corrmat, echo=F}
+# initialize matrix
+rrmat <- as.data.frame(matrix(NA,sum(!dat_all$isNotPrimary & !dat_all$confidence=="none"),sum(!dat_all$isNotPrimary & !dat_all$confidence=="none")))
+rownames(rrmat) <- dat_all$phenotype[!dat_all$isNotPrimary & !dat_all$confidence=="none"]
+colnames(rrmat) <- paste0("phen_",rownames(rrmat))
+
+# prep list of phenotypes by sex used as primary
+both_nam <- dat_all$phenotype[dat_all$sex=="both_sexes" & !dat_all$isNotPrimary & !dat_all$confidence=="none"]
+fem_nam <- dat_all$phenotype[dat_all$sex=="female" & !dat_all$isNotPrimary & !dat_all$confidence=="none"]
+mal_nam <- dat_all$phenotype[dat_all$sex=="male" & !dat_all$isNotPrimary & !dat_all$confidence=="none"]
+
+# start with both_sexes gwas
+rrmat_both <- read.table(params$cormat_bothsex,header=T,row.names=1,stringsAsFactors=F,sep=',')
+rownames(rrmat_both)[rownames(rrmat_both)=="isFemale"] <- "is_female"
+colnames(rrmat_both) <- paste0("phen_",rownames(rrmat_both))
+rrmat[both_nam,paste0("phen_",both_nam)] <- rrmat_both[match(both_nam,rownames(rrmat_both)), match(both_nam,rownames(rrmat_both))]
+rm(rrmat_both)
+
+# load and add female gwas
+rrmat_fem <- read.table(params$cormat_female,header=T,row.names=1,stringsAsFactors=F,sep=',')
+colnames(rrmat_fem) <- paste0("phen_",rownames(rrmat_fem))
+rrmat[fem_nam,paste0("phen_",fem_nam)] <- rrmat_fem[match(fem_nam,rownames(rrmat_fem)), match(fem_nam,rownames(rrmat_fem))]
+rrmat[fem_nam,paste0("phen_",both_nam[both_nam %in% rownames(rrmat_fem)])] <- rrmat_fem[match(fem_nam,rownames(rrmat_fem)), match(both_nam[both_nam %in% rownames(rrmat_fem)],rownames(rrmat_fem))]
+rrmat[both_nam[both_nam %in% rownames(rrmat_fem)],paste0("phen_",fem_nam)] <- rrmat_fem[match(both_nam[both_nam %in% rownames(rrmat_fem)],rownames(rrmat_fem)), match(fem_nam,rownames(rrmat_fem))]
+rm(rrmat_fem)
+
+# load and add male gwas
+rrmat_mal <- read.table(params$cormat_male,header=T,row.names=1,stringsAsFactors=F,sep=',')
+colnames(rrmat_mal) <- paste0("phen_",rownames(rrmat_mal))
+rrmat[mal_nam,paste0("phen_",mal_nam)] <- rrmat_mal[match(mal_nam,rownames(rrmat_mal)), match(mal_nam,rownames(rrmat_mal))]
+rrmat[mal_nam,paste0("phen_",both_nam[both_nam %in% rownames(rrmat_mal)])] <- rrmat_mal[match(mal_nam,rownames(rrmat_mal)), match(both_nam[both_nam %in% rownames(rrmat_mal)],rownames(rrmat_mal))]
+rrmat[both_nam[both_nam %in% rownames(rrmat_mal)],paste0("phen_",mal_nam)] <- rrmat_mal[match(both_nam[both_nam %in% rownames(rrmat_mal)],rownames(rrmat_mal)), match(mal_nam,rownames(rrmat_mal))]
+rm(rrmat_mal)
+
+# zero NAs
+rrmat[is.na(rrmat)] <- 0
+
+###
+
+# load Ns
+
+# initialize matrix
+nnmat <- as.data.frame(matrix(NA,sum(!dat_all$isNotPrimary & !dat_all$confidence=="none"),sum(!dat_all$isNotPrimary & !dat_all$confidence=="none")))
+rownames(nnmat) <- dat_all$phenotype[!dat_all$isNotPrimary & !dat_all$confidence=="none"]
+colnames(nnmat) <- paste0("phen_",rownames(rrmat))
+
+# start with both_sexes gwas
+nnmat_both <- read.table(params$ns_bothsex,header=T,sep=',',stringsAsFactors=F,row.names=1)
+rownames(nnmat_both)[rownames(nnmat_both)=="isFemale"] <- "is_female"
+colnames(nnmat_both) <- paste0("phen_",rownames(nnmat_both))
+nnmat[both_nam,paste0("phen_",both_nam)] <- nnmat_both[match(both_nam,rownames(nnmat_both)), match(both_nam,rownames(nnmat_both))]
+rm(nnmat_both)
+
+# load and add female gwas
+nnmat_fem <- read.table(params$ns_female,header=T,sep=',',stringsAsFactors=F,row.names=1)
+colnames(nnmat_fem) <- paste0("phen_",rownames(nnmat_fem))
+nnmat[fem_nam,paste0("phen_",fem_nam)] <- nnmat_fem[match(fem_nam,rownames(nnmat_fem)), match(fem_nam,rownames(nnmat_fem))]
+nnmat[fem_nam,paste0("phen_",both_nam[both_nam %in% rownames(nnmat_fem)])] <- nnmat_fem[match(fem_nam,rownames(nnmat_fem)), match(both_nam[both_nam %in% rownames(nnmat_fem)],rownames(nnmat_fem))]
+nnmat[both_nam[both_nam %in% rownames(nnmat_fem)],paste0("phen_",fem_nam)] <- nnmat_fem[match(both_nam[both_nam %in% rownames(nnmat_fem)],rownames(nnmat_fem)), match(fem_nam,rownames(nnmat_fem))]
+rm(nnmat_fem)
+
+# load and add male gwas
+nnmat_mal <- read.table(params$ns_male,header=T,sep=',',stringsAsFactors=F,row.names=1)
+colnames(nnmat_mal) <- paste0("phen_",rownames(nnmat_mal))
+nnmat[mal_nam,paste0("phen_",mal_nam)] <- nnmat_mal[match(mal_nam,rownames(nnmat_mal)), match(mal_nam,rownames(nnmat_mal))]
+nnmat[mal_nam,paste0("phen_",both_nam[both_nam %in% rownames(nnmat_mal)])] <- nnmat_mal[match(mal_nam,rownames(nnmat_mal)), match(both_nam[both_nam %in% rownames(nnmat_mal)],rownames(nnmat_mal))]
+nnmat[both_nam[both_nam %in% rownames(nnmat_mal)],paste0("phen_",mal_nam)] <- nnmat_mal[match(both_nam[both_nam %in% rownames(nnmat_mal)],rownames(nnmat_mal)), match(mal_nam,rownames(nnmat_mal))]
+rm(nnmat_mal)
+
+diag(nnmat) <- 1000000
+n_lim <- 1000
+rrmat[nnmat < n_lim] <- 0
+
+```
+
+We estimate these phenotypic correlations from the UK Biobank GWAS sample (minus a handful of individuals who have withdrawn since the Round 2 GWAS release) after residualizing on the GWAS covariates ($sex, age, age^2, sex \times age, sex \times age^2, 20 PCs$) using pairwise complete data. This leaves some phenotypic correlations that either cannot be estimated due to never being measured in the same individual (e.g. sex-specific items across sex, or other conditional dependencies on previous items), or where the correlation estimate is highly unstable due to the number of intersecting individuals observed for both phenotypes is small. To resolve this, we conversatively set to zero all correlations between pairs of phenotypes where less than `r n_lim` individuals are observed for both phenotypes.
+
+```{r effect_tests, echo=F}
+ntest_high <- sum(dat_all$conf_simple=="high", na.rm = T)
+ntest_medhigh <- sum(dat_all$conf_simple %in% c("medium","high"), na.rm = T)
+ntest_lmedhigh <- sum(dat_all$conf_simple %in% c("low","medium","high"), na.rm = T)
+
+# get eigenvalues
+eval_l <- eigen(rrmat[rownames(rrmat) %in% dat_all$phenotype[dat_all$conf_simple %in% c("low","medium","high")],
+                      rownames(rrmat) %in% dat_all$phenotype[dat_all$conf_simple %in% c("low","medium","high")]])$values
+eval_m <- eigen(rrmat[rownames(rrmat) %in% dat_all$phenotype[dat_all$conf_simple %in% c("medium","high")],
+                      rownames(rrmat) %in% dat_all$phenotype[dat_all$conf_simple %in% c("medium","high")]])$values
+eval_h <- eigen(rrmat[rownames(rrmat) %in% dat_all$phenotype[dat_all$conf_simple %in% c("high")],
+                      rownames(rrmat) %in% dat_all$phenotype[dat_all$conf_simple %in% c("high")]])$values
+
+# compute effective tests
+# Method of Li et al, 2011, https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3059433/
+meff_low <- ntest_lmedhigh - sum(eval_l[eval_l>1]-1)
+meff <- ntest_medhigh - sum(eval_m[eval_m>1]-1)
+meff_high <- ntest_high - sum(eval_h[eval_h>1]-1)
+
+# c(meff_low,meff,meff_high) for N thresholds c(0,10,100,1000,10000) on correlation matrix excluding biomarkers
+# we end up using N=1000 here
+# [1] 1137.62  689.56  466.31
+# [1] 1161.36  709.71  477.98
+# [1] 1163.21  710.34  477.98
+# [1] 1166.77  710.73  477.98
+# [1] 1188.47  710.36  477.92
+
+rm(rrmat)
+rm(nnmat)
+```
+
+This computation of $M_{eff}$ suggests:
+
+* `r round(meff_high,2)` tests among high confidence phenotypes alone
+* `r round(meff,2)` tests among medium and high confidence phenotypes combined
+* `r round(meff_low,2)` tests among low, medium, and high confidence phenotypes combined
+
+We skip computation of $M_{eff}$ including phenotypes with no confidence since we generally don't recommend use of those results.
+
+</div>
+
+<br>
+
+# **Conclusion:** significance thresholds {#sig_thresh}
+
+<div class="well">
+
+The above process leaves us with a large number of possible p-value thresholds:
+
+* $p<.05$ for nominal significance
+* $p<`r signif(.05/meff_high,3)`$ for the `r round(meff_high,2)` effective tests in high confidence phenotypes
+* $p<`r signif(.05/ntest_high,3)`$ for the `r ntest_high` high confidence phenotypes, treating them as independent
+* $p<`r signif(.05/meff,3)`$ for the `r round(meff,2)` effective tests in medium and high confidence phenotypes 
+* $p<`r signif(.05/ntest_medhigh,3)`$ for the `r ntest_medhigh` medium and high confidence phenotypes, treating them as independent
+* $p<`r signif(.05/meff_low,3)`$ for the `r round(meff_low,2)` effective tests in low, medium and high confidence phenotypes
+* $p<`r signif(.05/ntest_lmedhigh,3)`$ for the `r ntest_lmedhigh` low, medium, and high confidence phenotypes, treating them as independent
+* $p<`r signif(.05/sum(!dat_all$isNotPrimary),3)`$ for the `r sum(!dat_all$isNotPrimary)` GWASed phenotypes (including those with no confidence for `ldsc`), treating them as independent
+* $p < 3.167 \times 10^{-5}\ (z > 4)$ as previously suggested as a rule of thumb for the necessary level of $h^2_g$ signal necessary to support subsequent LDSR analyses of genetic correlation ($r_g$; [Bulik-Sullivan et al. 2015](https://www.ncbi.nlm.nih.gov/pubmed/26414676)) 
+* $p < 1.280 \times 10^{-12}\ (z > 7)$ as previously suggested as a threshold for inclusion in stratified LDSR analyses ([Finucane et al. 2015](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/))
+
+We observe that the differences between most of these options based on (effective) number of tests is fairly marginal. Splitting the phenotypes by confidence level, we see the number of phenotypes surpassing each p-value threshold is quite similar.
+
+| Threshold | Low Conf. | Medium Conf. | High Conf. |
+|-|-|-|------|
+| $p<`r signif(.05/meff_high,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/meff_high)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/meff_high)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/meff_high)` |
+| $p<`r signif(.05/ntest_high,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/ntest_high)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/ntest_high)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/ntest_high)` |
+| $p<`r signif(.05/meff,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/meff)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/meff)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/meff)` |
+| $p<`r signif(.05/ntest_medhigh,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/ntest_medhigh)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/ntest_medhigh)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/ntest_medhigh)` |
+| $p<`r signif(.05/meff_low,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/meff_low)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/meff_low)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/meff_low)` |
+| $p<`r signif(.05/ntest_lmedhigh,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/ntest_lmedhigh)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/ntest_lmedhigh)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/ntest_lmedhigh)` |
+| $p<`r signif(.05/sum(!dat_all$isNotPrimary),3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/sum(!dat_all$isNotPrimary))` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/sum(!dat_all$isNotPrimary))` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/sum(!dat_all$isNotPrimary))` |
+| $p < `r signif(pnorm(4,lower=F),3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < pnorm(4,lower=F))` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < pnorm(4,lower=F))` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < pnorm(4,lower=F))` |
+
+For simplicity, we choose to focus on reporting the following levels:
+
+| Level | Criteria | Description |
+|-|--|-----|
+| NA | low confidence | not evaluated due to risk of biases/instability |
+| NonSig | $p > .05$ | insufficient evidence for $h^2_g > 0$ |
+| Nominal | $p < .05$ | if you only looked at one phenotype... |
+| z4 | $p < 3.17 \times 10^{-5}\ (z > 4)$ | Bonferroni sig. for medium/high confidence phenotypes, sufficient for $r_g$ analysis |
+| z7 | $p < 1.28 \times 10^{-12}\ (z > 7)$ | significant enough for stratified LDSR |
+
+We anticipate that these should cover most of the range of interests in using and interpreting the LDSR $h^2_g$ results. we adopt $z > 4$ as the primary significance threshold, since it conservatively approximates the Bonferroni thresholds of interest (among medium and high confidence phenotypes) and matches the previously suggested standard for recommending followup analyses. This conservative choice does mean that a few phenotypes that would reach significance under one of the other thresholds are omitted, but p-values and results for all phenotypes are reported so other thresholds can be applied by other researchers if desired.
+
+</div>
+
+# Summary of Significant Results
+
+<div class="well">
+
+The resulting breakdown of phenotypes with significant heritability is:
+
+```{r h2_sig, echo=F}
+
+dat_all$h2_sig <- NA
+dat_all$h2_sig[!is.na(dat_all$conf_simple) & 
+                 (dat_all$conf_simple %in% c("medium","high")) &
+                 dat_all$h2_p >= .05] <- "nonsig"
+dat_all$h2_sig[!is.na(dat_all$conf_simple) & 
+                 (dat_all$conf_simple %in% c("medium","high")) &
+                 dat_all$h2_p < .05] <- "nominal"
+dat_all$h2_sig[!is.na(dat_all$conf_simple) & 
+                 (dat_all$conf_simple %in% c("medium","high")) &
+                 dat_all$h2_z > 4] <- "z4"
+dat_all$h2_sig[!is.na(dat_all$conf_simple) & 
+                 (dat_all$conf_simple %in% c("medium","high")) &
+                 dat_all$h2_z > 7] <- "z7"
+dat_all$h2_sig <- factor(dat_all$h2_sig, levels=c("nonsig","nominal","z4","z7"))
+
+# table(dat_all$conf_simple[!is.na(dat_all$conf_simple)], dat_all$h2_sig[!is.na(dat_all$conf_simple)], useNA="ifany")
+
+```
+
+| Confidence | NonSig | Nominal | z4 | z7 | NA |
+|--|-|-|-|-|-|
+| low | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]=="nonsig",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]=="nominal",na.rm=T)` | `r  sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]=="z4",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]=="z7",na.rm=T)` | `r sum(is.na(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]),na.rm=T)` |
+| medium | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]=="nonsig",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]=="nominal",na.rm=T)` | `r  sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]=="z4",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]=="z7",na.rm=T)` | `r sum(is.na(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]),na.rm=T)` |
+| high | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="nonsig",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="nominal",na.rm=T)` | `r  sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="z4",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="z7",na.rm=T)` | `r sum(is.na(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]),na.rm=T)` |
+
+
+Totalling `r sum(as.character(dat_all$h2_sig[!is.na(dat_all$conf_simple) & (dat_all$conf_simple %in% c("medium","high"))]) %in% c("z4","z7"),na.rm=T)` significant phenotypes ($z > 4$ with medium or high confidence), with `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="z7",na.rm=T)` highest tier results ($z > 7$ with high confidence).
+</div>
+
+<br>
+
+```{r save_results, echo=F, warnings=F, message=F}
+
+if(params$writeout){
+
+  # fix p=0
+  for(jj in grep("_p$",names(dat_all))){
+    if(any(!is.na(dat_all[,jj]) & dat_all[,jj]==0)){
+      jjz <- grep(gsub("_p$","_z",names(dat_all)[jj]),names(dat_all))
+      # print(paste("replacing p=0 in",names(dat_all)[jj],"using z score",names(dat_all)[jjz],sep=" "))
+      zero_p <- which(!is.na(dat_all[,jj]) & dat_all[,jj]==0)
+      dat_all[zero_p,jj] <- format(mpfr(0.5,64)*erfc(mpfr(dat_all[[jjz]][zero_p],64)/sqrt(mpfr(2,64))), max.digits=15, scientific=T)
+      }
+  }
+  
+  dat_all <- dat_all[,-which(names(dat_all)=="int_p_text")]
+  
+  out1 <- dat_all[!is.na(dat_all$conf_simple),c("phenotype","description","h2_liability","h2_liability_se","h2_observed","h2_observed_se","h2_z","h2_p","h2_sig","confidence","notes","intercept","intercept_se","intercept_z","intercept_p","lambdaGC","mean_chi2","ratio","ratio_se","n","Neff","variable_type","isBinary","n_cases","n_controls","prevalence","source","sex","isNotPrimary","isBadPower","isLowNeff","isMidNeff","isExtremeSE","isHighSE","isSexBias","isBadOrdinal","isNumericOrdinal")]
+  
+  out2 <- dat_all[(dat_all$conf_simple=="medium" | dat_all$conf_simple=="high") & as.character(dat_all$h2_sig) %in% c("z4","z7"),]
+  
+  # h2 only
+  con1 <- gzfile(paste0(params$outdir,"/ukb31063_h2_topline.",params$outdate,".tsv.gz"),"w")
+  write.table(out1,file=con1,sep='\t',col.names=T,row.names=F,quote=F)
+  close(con1)
+  
+  # sig heritable
+  con2 <- gzfile(paste0(params$outdir,"/ukb31063_h2_z4.",params$outdate,".tsv.gz"),"w")
+  write.table(out2,file=con2,sep='\t',col.names=T,row.names=F,quote=F)
+  close(con2)
+  
+  # all with annotations
+  con3 <- gzfile(paste0(params$outdir,"/ukb31063_h2_all.",params$outdate,".tsv.gz"),"w")
+  write.table(dat_all,file=con3,sep='\t',col.names=T,row.names=F,quote=F)
+  close(con3)
+
+}
+
+```
+
+***
+
+# Credits
+
+<div class="well">
+
+* **Primary analysis:** Raymond Walters (any and all mistakes above are mine)
+* **LDSR analysis support:** Nikolas Baya, Katherine Tashman, Danfeng Chen, Liam Abbott
+* **LDSR downsampling results:** Nikolas Baya
+* **Manhattan plots:** Andrea Ganna (and check out [GWASbot](http://twitter.com/SbotGwa))
+* **Phenotype analysis support**: Caitlin Carey, Duncan Palmer
+* **Supervision**: Benjamin Neale
+* **UK Biobank GWAS Core Team:** Liam Abbott, Sam Bryant, Claire Churchhouse, Andrea Ganna, Daniel Howrigan, Duncan Palmer, Ben Neale, Raymond Walters, Caitlin Carey, The Hail team
+* **UK Biobank GWAS Contributors:** Verneri Anttila, Krishna Aragam, Alex Baumann, Joanne Cole, Mark J. Daly, Rob Damian, Mary Haas, Joel Hirschhorn, Eric Jones, Ruchi Munshi, Manuel Rivas, Sailaja Vedantam
+
+With additional thanks to Alex Bloemendal, Patrick Turley, Robert Maier, Michel Nivard, Steven Gazal, Tarjinder Singh, and many others for helpful conversations.
+
+</div>
+
+***
+
+

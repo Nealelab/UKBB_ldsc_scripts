@@ -1,0 +1,1231 @@
+---
+title: "Defining Confidence Levels for UKB Round 2 LDSR Analyses"
+date: "Last updated `r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+params:
+  datfile: "../results/round2_raw/h2_topline_temp.tsv.gz"
+  fulldatfile: "../results/round2_raw/bothsexes_h2_topline_temp.tsv.gz"
+  fulldatmfile: "../results/round2_raw/male_h2_topline_temp.tsv.gz"  
+  fulldatffile: "../results/round2_raw/female_h2_topline_temp.tsv.gz"
+  sexnfile: "../results/round2_raw/h2_topline_sex_ns_temp.tsv.gz"
+  onesexnfile: "../results/round2_raw/h2_topline_onesex_ns_temp.tsv.gz"
+  datadict: "../reference/Data_Dictionary_Showcase.csv"
+  ordwarn: "../reference/ukb_ord_codings_warn.txt"
+  outdir: "../results/round2_raw"
+  imagedir: "../external_images"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align="center")
+# devtools::install_github("ropensci/plotly")
+require(plotly)
+require(DT)
+require(crosstalk)
+require(crosstool)
+require(Rmpfr)
+
+plotly_colors <- c(
+    '#1f77b4',  # muted blue
+    '#ff7f0e',  # safety orange
+    '#2ca02c',  # cooked asparagus green
+    '#d62728',  # brick red
+    '#9467bd',  # muted purple
+    '#8c564b',  # chestnut brown
+    '#e377c2',  # raspberry yogurt pink
+    '#7f7f7f',  # middle gray
+    '#bcbd22',  # curry yellow-green
+    '#17becf'   # blue-teal
+) # https://stackoverflow.com/questions/40673490/how-to-get-plotly-js-default-colors-list
+```
+
+<style type="text/css">
+div.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r data_load2, include=FALSE}
+# need from topline selection: dat,dat_full,datm_full,datf_full,sex_ns,onesex_ns
+
+dat <- read.delim(params$datfile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
+dat_full <- read.delim(params$fulldatfile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
+datm_full <- read.delim(params$fulldatmfile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
+datf_full <- read.delim(params$fulldatffile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
+sex_ns <- read.delim(params$sexnfile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
+onesex_ns <- read.delim(params$onesexnfile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
+
+```
+
+
+<br>
+
+***
+
+# Overview
+
+Elsewhere we've described how [we selected a "primary" $h^2_g$ result](select_topline.html) for each of the unique phenotypes in the UKB GWAS. These phenotypes range widely in terms of sample size and polygenicity, among other factors. These features can affect our confidence in the stability of the LD Score Regression results. For example we previously noted concerns about [bias at low effective sample sizes](http://www.nealelab.is/blog/2017/9/20/insights-from-estimates-of-snp-heritability-for-2000-traits-and-disorders-in-uk-biobank).
+
+We document here out evaluation of confidence in each of the LDSR $h^2_g$ results. This is separate from our evaulation of [statistical significance](significance.html) for these results. Here we look at:
+
+* What is the [minimum sample size](#min-n) necessary to have statistical power for LDSR $h^2_g$ estimation?
+* Are there [signs of bias](#neff_bias) in $h^2_g$ estimates as a function of sample size?
+* Are there phenotypes with [unexpectedly large sampling variation](#large-se) for their $h^2_g$ estimate?
+* Are there [phenotyping](#sex-bias) [features](#ordinal) to be aware of in assessing our confidence in interpreting the results?
+
+We conclude with a summary of our [current confidence classifications](#summary).
+
+[Credits](#credits)
+
+
+***
+
+# Minimum sample size requirements {#min-n}
+
+After [we've defined a "primary" $h^2_g$ result](select_topline.html) for each of the `r length(unique(dat$phen_stem))` unique phenotypes in the Round 2 GWAS, we know that the sample size (or effective sample size) for many of these phenotypes is quite low. For example, case counts are quite small for most ICD codes and job codes. To avoid unnecessary multiple testing for the significance of the $h^2_g$ results we therefore aim to identify the minimum (effective) sample size required to provide sufficient power to make LDSR analysis viable. [*NB:* We focus first on a bare minimum in terms of power, we'll return to the question of bias later.]
+
+*Goal:* determine the minimum (effective) sample size where we'd expect to have some useful level of power to detect a reasonable $h^2_g$.
+
+<br>
+
+## Question 1: What's the relationship between sample size and precision for LDSR?
+
+<div class="well">
+  
+  To evaluate the effective sample size required to have power in LDSR analyses, we consider the relationship between $N_{eff}$ and the observed standard error (SE) for the LDSR $h^2_g$ estimate for the `r length(unique(dat$phen_stem))` Round 2 phenotypes.
+
+```{r neff_se, echo=F}
+# for color scaling
+dat$h2_liab <- dat$h2_liability
+dat$h2_liab[dat$h2_liab < 0] <- 0
+dat$h2_liab[dat$h2_liab > .5] <- 0.5
+
+# handle p=0
+dat$int_p_text <- as.character(signif(dat$intercept_p, 3))
+dat$int_p_text[dat$intercept_p==0] <- as.character(format(mpfr(0.5,64)*erfc(mpfr(dat$intercept_z[dat$intercept_p==0],64)/sqrt(mpfr(2,64))),max.digits=3,scientific=T))
+
+pp <- plot_ly(dat,
+        x=~Neff,
+        y=~h2_liability_se,
+        type="scatter",
+        mode="markers",
+        color=~h2_liab,
+        colors=c("blue","darkorange"),
+        hoverinfo="text",
+        width=400,height=400,
+        text = ~paste0(
+          "Phenotype: ", description,
+          "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Effective N: ", Neff)) %>%
+  layout(xaxis=list(title="Neff"),
+         yaxis=list(title="SE of SNP-h^2 estimate (liability)"),
+         margin=list(b=65))
+htmltools::div( pp, align="center" )
+```
+
+*Takeaway:* There's a clear inverse relationship between $N_{eff}$ and the SE of the $h^2_g$ estimate. The SE is also very large (e.g. wider than the 0-1 range for $h^2$) at small effective sample sizes.
+
+<br>
+
+For both visualization and modelling, it's useful to look at this relationship in terms of the inverse variance ($1/SE^2$):
+
+```{r neff_se_inv, echo=F}
+
+
+pp <- plot_ly(dat,
+        x=~Neff,
+        y=~1/h2_liability_se^2,
+        type="scatter",
+        mode="markers",
+        color=~h2_liab,
+        colors=c("blue","darkorange"),
+        hoverinfo="text",
+        width=400,height=400,
+        text = ~paste0(
+          "Phenotype: ", description,
+          "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Effective N: ", Neff)) %>%
+  layout(xaxis=list(title="Neff"),
+         yaxis=list(title="1/SE^2 for SNP-h^2 estimate (liability)"),
+         margin=list(b=65))
+htmltools::div( pp, align="center" )
+```
+
+*Takeaway:* There's a nearly linear relationship between $N_{eff}$ and $1/SE^2$. This relationship is highly heteroskedastic, with much greater variability in the inverse variance when $N_{eff}$ is large.
+
+<br>
+
+We can model this observed relationship in order to establish the "expected" inverse variance as a function of $N_{eff}$. Given the observed heteroskedasticity, and that our primary interest is in the error variance at small sample sizes, we consider a weighted regression with weights inversely proportional to sample size. Based on the plot above we also allow for quadratic curvature in the relationship with $N_{eff}$, and also compare regression to a loess fit.
+
+```{r neff_se_inv_fit, echo=F}
+dat$Neff_sq <- (dat$Neff)^2
+
+mod1 <- lm((1/h2_liability_se^2) ~ Neff + Neff_sq -1,data=dat, weights = 1/Neff^3)
+llmod <- loess((1/h2_liability_se^2) ~ Neff, data = dat, span=0.2)
+
+dat$pred_h2liab_se <- 1/sqrt(llmod$fitted)  # save for later 
+
+# summary(mod1)
+
+pp <- plot_ly(dat,
+        x=~Neff,
+        y=~1/h2_liability_se^2,
+        type="scatter",
+        mode="markers",
+        hoverinfo="text",
+        width=400,height=400,
+        text = ~paste0(
+          "Phenotype: ", description,
+          "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Effective N: ", Neff)) %>%
+  add_trace(x=~Neff[order(Neff)],
+            y=~mod1$fitted.values[order(Neff)],
+            mode="lines",
+            showlegend=F,
+            hoverinfo="text",
+            text="") %>%
+  add_trace(x=llmod$x[order(llmod$x)],
+            y=llmod$fitted[order(llmod$x)],
+            showlegend=F,
+            mode="lines",
+            hoverinfo="text",
+            text="") %>%
+  layout(xaxis=list(title="Neff"),
+         yaxis=list(title="1/SE^2 for SNP h^2 estimate (liability)"),
+         margin=list(b=65))
+htmltools::div( pp, align="center" )
+```
+*Note:* Orange = regression, green = loess. 
+
+<br>
+
+Of these, the loess fit appears to better fit the overall trend of the data, especially when focusing on smaller sample sizes (as is visible when zooming the above plot). Note the smaller sample sizes are the range relevant to the current question of the minimum viable sample size for ldsc. 
+
+
+```{r neff_se_lowN_fit, echo=F}
+
+pp <- plot_ly(dat,
+        x=~Neff,
+        y=~h2_liability_se,
+        type="scatter",
+        mode="markers",
+        hoverinfo="text",
+        width=400,height=400,
+        text = ~paste0(
+          "Phenotype: ", description,
+          "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Effective N: ", Neff)) %>%
+  add_trace(x=~Neff[order(Neff)],
+            y=~1/sqrt(mod1$fitted.values[order(Neff)]),
+            mode="lines",
+            showlegend=F,
+            hoverinfo="text",
+            text="") %>%
+  add_trace(x=llmod$x[order(llmod$x)],
+            y=1/sqrt(llmod$fitted[order(llmod$x)]),
+            showlegend=F,
+            mode="lines",
+            hoverinfo="text",
+            text="") %>%
+  layout(xaxis=list(title="Neff",range=c(0,5000)),
+         yaxis=list(title="SE for SNP-h^2 estimate (liability)", range=c(0,0.35)),
+         margin=list(b=65))
+htmltools::div( pp, align="center" )
+
+rm(mod1)
+
+```
+
+<br>
+
+We adopt the loess model (green) for predicting SEs from sample size for the rest of this section.
+
+</div>
+
+<br>
+
+## Question 2: Power as a function of expected SE
+
+<div class="well">
+
+Given the above model for expected SEs as a function of sample size, and assuming the SEs are well calibrated, we can then turn these modelled SEs into a power analysis. 
+
+Specifically, we ask for a given true SNP-heritability, sample size and p-value threshold what the probability is of the estimated $h^2_g$ divided by its SE exceeding to corresponding critical value for the Z statistic, assuming the sampling variation of the estimated estimated $h^2_g$ and it's estimated SE both match the expected SE based on sample size given by the above model. We focus on here power at $p < .05$ without any multiple testing correction in the interest of providing results relevant to hypotheses that include look-ups of $h^2_g$ for a single phenotype (as opposed to scans across all available UKB phenotypes). We'll return to the question of which results we'd consider significant in the context of looking at all `r length(unique(dat$phen_stem))` phenotypes later.
+
+```{r neff_power_curve_reg, echo=F}
+
+# h2hat = N(h2, se^2)
+# z = h2hat/se = N(h2/se, 1)
+# power = pnorm(z_alpha, mean=h2/se, var=1, lower=F)
+
+pow_pred_points <- dat[order(dat$Neff),c("Neff","pred_h2liab_se")]
+
+qq <- c(seq(1,nrow(pow_pred_points)-1,10),nrow(pow_pred_points))
+pow_pred_points <- pow_pred_points[qq,]
+
+### set up plots for different p-val thresholds
+# with a range of h2 values
+
+pp1 <- plot_ly(pow_pred_points,
+               x=~Neff,
+               y=~pnorm(qnorm(.05,lower=F), mean = .3/pred_h2liab_se, sd=1, lower.tail = F),
+               type="scatter",
+               mode="lines",
+               name="SNP-h^2 = 0.3",
+               showlegend=T,
+               hoverinfo="none",
+               height=400, width=400
+      ) %>% add_trace(
+              x=~Neff,
+              y=~pnorm(qnorm(.05,lower=F), mean = .2/pred_h2liab_se, sd=1, lower.tail = F),
+              mode="lines",
+              name="SNP-h^2 = 0.2"
+      ) %>% add_trace(
+              x=~Neff,
+              y=~pnorm(qnorm(.05,lower=F), mean = .1/pred_h2liab_se, sd=1, lower.tail = F),
+              mode="lines",
+              name="SNP-h^2 = 0.1"
+      ) %>% add_trace(
+              x=~Neff,
+              y=~pnorm(qnorm(.05,lower=F), mean = .05/pred_h2liab_se, sd=1, lower.tail = F),
+              mode="lines",
+              name="SNP-h^2 = 0.05"              
+      ) %>% layout(
+        xaxis = list(title = "Effective N", range=c(0,30000)),
+        yaxis = list(title= "Estimated Power", range=c(0,1),
+        margin=list(b=65))
+      )
+
+htmltools::div( pp1, align="center" )
+
+```
+
+Note that this is a bit more empirical than a formal power analysis. We're relying on the average observed SE reported for the ldsc $h^2_g$ estimates rather than some theoretical expectation for the SE. There's also likely a relationship between the SE and the true $h^2_g$ (and corresponding genetic architecture), as evidenced by the previous plots of precision vs. sample size colored by $h^2_g$ estimate, that we do not account for in this power estimate. Nevertheless, we use this modelled estimate of power as a useful rough benchmark for evaluating what range of sample sizes to include in this $h^2_g$ analysis.
+
+</div>
+
+<br>
+  
+## Question 3: What $h^2_g$ is worth detecting?
+
+<div class="well">
+
+Now that we have rough estimates of power as a function of $h^2_g$ and sample size, the question is what $h^2_g$ is relevant to have power to detect. 
+
+If we look at the UKB phenotypes with the larges sample sizes (i.e. $N_{eff}$>300k, where there's no worry about power) we find that the vast majority of phenotypes have $h^2_g$ estimates $\leq 0.3$, with a somewhat bimodal distribution (overall mean=`r round(mean(dat$h2_liability[dat$Neff>300000]),3)`, median=`r round(median(dat$h2_liability[dat$Neff>300000]),3)`).
+
+```{r h2_high_neff, echo=F}
+
+pp <- plot_ly(dat[dat$Neff > 300000,],
+        x=~h2_liability,
+        type="histogram",
+        showlegend=F,
+        hoverinfo="none",
+        width=400, height=400
+        ) %>% layout(
+  xaxis = list(title="SNP-h^2 (liability)", range=c(-0.1,0.6),
+  margin=list(b=65))
+)
+htmltools::div( pp, align="center" )
+```
+
+<br>
+
+From the observed $h^2_g$ distribution, is appears the phenotypes with larger estimated SNP-heritability tend to have estimates around $h^2_g=0.2$ or slightly larger. We can then orient our decisions on sample size around having power to detect $h^2_g \geq 0.2$.
+
+</div>
+
+<br>
+
+
+## **Conclusion**
+
+```{r required_neff, echo=F}
+
+pred_pow <- pnorm(qnorm(.05,lower=F), mean = .2/dat$pred_h2liab_se, sd=1, lower.tail = F)
+
+req_neff <- min(dat$Neff[pred_pow > 0.8])
+
+req_neff_round <- 4500
+
+rm(pred_pow)
+
+```
+
+From the above estimated power analysis, based on a loess fit of the observed SE of $h^2_g$ estimates as a function of effective N, we estimate needing $N_{eff}$=`r req_neff` to have at least 80% power to detect $h^2_g \geq 0.2$ at nominal significance ($p < .05$). We take 80% power as a standard goal for having a "well-powered" analysis, and focus on $h^2_g \geq 0.2$ and $p < .05$ for the reasons described above.
+
+For the sake of having a round number, and choosing to err slightly towards being inclusive in the analysis, we take this fitted value and round down to $N_{eff}=`r req_neff_round`$. We exclude `r sum(dat$Neff <= req_neff_round)` phenotypes with $N_{eff} \leq `r req_neff_round`$ from further consideration in the LDSR $h^2_g$ analysis based on this threshold, leaving `r sum(dat$Neff > req_neff_round)` phenotypes.
+
+[*NB:* We're lenient here largely because we know much more stringent criteria on $N_{eff}$ will be applied below in defining "low confidence" results.]
+
+```{r apply_min_n, echo=F}
+# also setup here to track confidence
+dat$confidence <- "high"
+dat_full$confidence = "high"
+datm_full$confidence = "high"
+datf_full$confidence = "high"
+
+dat$isNotPrimary <- !dat$keep
+dat_full$isNotPrimary <- !dat_full$keep
+datm_full$isNotPrimary <- !datm_full$keep
+datf_full$isNotPrimary <- !datf_full$keep
+
+dat_full$confidence[dat_full$isNotPrimary] = "NA_(not_primary)"
+datm_full$confidence[datm_full$isNotPrimary] = "NA_(not_primary)"
+datf_full$confidence[datf_full$isNotPrimary] = "NA_(not_primary)"
+
+dat$isBadPower <- F
+dat$isBadPower[dat$Neff <= req_neff_round] <- T
+dat$confidence[dat$isBadPower & dat$confidence=="high"] <- "none"
+
+dat_full$isBadPower <- F
+dat_full$isBadPower[dat_full$Neff<=req_neff_round] <- T
+dat_full$confidence[dat_full$isBadPower & dat_full$confidence=="high"] <- "none"
+
+datm_full$isBadPower <- F
+datm_full$isBadPower[datm_full$Neff<=req_neff_round] <- T
+datm_full$confidence[datm_full$isBadPower & datm_full$confidence=="high"] <- "none"
+
+datf_full$isBadPower <- F
+datf_full$isBadPower[datf_full$Neff<=req_neff_round] <- T
+datf_full$confidence[datf_full$isBadPower & datf_full$confidence=="high"] <- "none"
+
+dat <- dat[!dat$isBadPower,]
+```
+
+<br>
+
+***
+
+# Potential biases at low effective N {#neff-bias}
+
+The above set of conditions identifies `r nrow(dat)` phenotypes that avoid redundancy for encoding and sex-specific results and reach a minimum effective sample size ($N_{eff}$) necessary for LDSR analysis to be viable in terms of power. These thresholds may be considered a bare minimum. We now consider instances among these `r nrow(dat)` phenotypes where we may still be pessimistic about the accuracy of the LDSR results. 
+
+<br>
+<div class="well">
+
+In the first round of UKB GWAS from the Neale lab, we highlighted [possible biases](http://www.nealelab.is/blog/2017/9/20/insights-from-estimates-of-snp-heritability-for-2000-traits-and-disorders-in-uk-biobank) in the LDSR $h^2_g$ estimate at low $N_{eff}$. In particular, we observed signs of attenuated $h^2_g$ estimates for phenotypes with $N_{eff} < 10,000$. We reassess that trend here. 
+
+```{r n_bias, echo=F}
+ll <- loess(h2_liability ~ Neff, data=dat, span = 1)
+
+pp <- plot_ly(dat,
+              x=~Neff,
+              y=~h2_liability,
+              type="scatter",
+              mode="markers",
+              width=800,height=300,
+              hoverinfo="text",
+              text = ~paste0(
+                "Phenotype: ", description,
+                "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+                "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+                "<br>Effective N: ", Neff)) %>%
+  add_trace(x=ll$x[order(ll$x)],
+            y=ll$fitted[order(ll$x)],
+            showlegend=F,
+            mode="lines",
+            hoverinfo="text",
+            text="") %>%
+  layout(yaxis=list(title="SNP-h^2 (liability)", range=c(-.25,.5)),
+         margin=list(b=65))
+htmltools::div( pp, align="center" )
+```
+
+*Note*: Plot restricted to `r nrow(dat)` phenotypes passing $N_{eff}$ threshold. Zoom out to see $h^2_g$ outliers.
+
+*Takeway:* Some mild attenuation in $h^2_g$ is seen below $N_{eff} = 100,000$, but it's as not as severe nor as sharply limited to $N_{eff} < 10,000$ as observed in round 1.
+
+</div>
+
+<br>
+
+## Question 1: results changed as a function of mix of questions?
+
+<div class="well">
+
+One possible hypothesis is that the change in the shape of attenuation reflects the changing mix of phenotypes in the Round 2 GWAS release. In particular, there's a large number of additional diet items with $N_{eff} \approx 50,000$ and mental health items at $N_{eff} \approx 120,000$. It's possible these subsets of items are influencing the shape of the attentuation curve by confounding true $h^2_g$ with $N_{eff}$. If we restrict to variables observed in nearly all samples:
+
+```{r n_bias_300k, echo=F}
+ll <- loess(h2_liability ~ Neff, data=dat[dat$n > 300000, ], span = 1)
+
+pp <- plot_ly(dat[dat$n > 300000, ],
+              x=~Neff,
+              y=~h2_liability,
+              type="scatter",
+              mode="markers",
+              width=800,height=300,
+              hoverinfo="text",
+              text = ~paste0(
+                "Phenotype: ", description,
+                "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+                "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+                "<br>Effective N: ", Neff)) %>%
+  add_trace(x=ll$x[order(ll$x)],
+            y=ll$fitted[order(ll$x)],
+            showlegend=F,
+            mode="lines",
+            hoverinfo="text",
+            text="") %>%
+  layout(yaxis=list(title="SNP-h^2 (liability)", range=c(-.1,.5)),
+         margin=list(b=65))
+htmltools::div( pp, align="center" )
+```
+*Note:* zoom out for $h^2_g$ outliers.
+
+
+*Takeaway:* the milder attentuation of $h^2_g$ as a function of $N_{eff}$ is still observed when restricting to `r sum(dat$n > 300000)` phenotypes with $N > 300,000$. Similar trends are observed for subsetting on other dimensions (not shown).
+
+**Conclusion:** The mix of phenotypes doesn't appear to explain the weaker attentuation effect.
+
+</div>
+
+<br>
+
+## Question 2: Attentuation evident in downsampling?
+
+<div class="well">
+
+Instead of looking across phenotypes, we can also consider the impact of sample size on $h^2_g$ estimates within a phenotype. We evaluate this by looking at how the LDSR estimates change when subsetting individuals from UKB for phenotypes with high $N$s and strong $h^2_g$ estimates.
+
+Specifically, for a given downsampling experiment we split UKB individuals into 300 chunks, perform a GWAS within each chunk (controlling for the standard GWAS covariates), and then meta-analyze increasing numbers of chunks. We then run LDSR for each of these meta-analyses to assess how the $h^2_g$ estimates change with growing meta-analyses.
+
+```{r downsample, fig.align='center', out.width=800, echo=F}
+knitr::include_graphics(paste0(params$imagedir,"/downsample_height.png"))
+
+knitr::include_graphics(paste0(params$imagedir,"/downsample_leg.png"))
+```
+
+*Note:* Above are two specific examples among a broader set of ongoing analyses. 
+
+*Takeaway:* There are signs of attenutation of the LDSR $h^2_g$ estimate at low $N$ in height, but leg impedence shows no such attentuation, and instead may have an upward bias. In both cases, estimates are clearly unstable at low $N$.
+
+**Conclusion:** These results are preliminary, and appear fairly unstable across phenotypes, but suggest that attenuation may occur irregularly across phenotypes and than in some instances there may be upward bias rather than downward attenuation at low sample sizes.
+
+</div>
+
+<br>
+
+## Question 3: Attentuation a function of stratification?
+
+<div class="well">
+
+The downsampling experiments, while inconclusive, do suggest instability of the LSDR $h^2_g$ at low $N$, with variability possibly exceeding the SE estimates. Noteably, there were signs of attenuation at low $N$ for height, a phenotype where the GWAS is likely affected by population stratification (intercept = $`r signif(dat$intercept[dat$phenotype=="50_irnt"],4)`$, p = $`r signif(dat$intercept_p[dat$phenotype=="50_irnt"],3)`$, ratio = $`r signif(dat$ratio[dat$phenotype=="50_irnt"],2)`$), but not leg impedence where stratification is weaker (intercept = $`r signif(dat$intercept[dat$phenotype=="23107_irnt"],4)`$, p = $`r signif(dat$intercept_p[dat$phenotype=="23107_irnt"],3)`$, ratio = $`r signif(dat$ratio[dat$phenotype=="23107_irnt"],2)`$).
+
+This leads us to evaluate whether the relationship between sample size and LDSR $h^2_g$ varies as a function of stratification. We start by noting that the LDSR intercept is expected to estimate $1+Na$ where $N$ is sample size and $a$ is an index of population stratification or other counfounding that is, under a simple stratification model, proportional to $F_{st}$. It follows that $a=(intercept-1)/N$ should give an estimate of stratification that is invariant to sample size. 
+
+On that basis, we look at LDSR $h^2_g$ estimates as a function of $N_{eff}$ split by deciles of $a=(intercept-1)/N$.
+
+```{r alpha_dec, echo=F}
+
+dat$alpha <- (dat$intercept-1)/dat$n
+
+pp <- plot_ly(dat,
+              x=~Neff,
+              y=~h2_liability,
+              type="scatter",
+              mode="markers",
+              width=800,
+              hoverinfo="text",
+              text = ~paste0(
+                "Phenotype: ", description,
+                "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+                "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+                "<br>Effective N: ", Neff)) %>%
+  layout(
+    xaxis = list(title="Neff", range=c(0,200000)),
+    yaxis = list(title="SNP-h^2", range=c(-.5,.5)),
+    title = "alpha deciles",
+    margin=list(b=65)
+  )
+
+qq <- quantile(dat$alpha,probs = seq(0,1,.1))
+for(i in 1:10){
+  ll <- loess(h2_liability ~ Neff, data=dat[(dat$alpha >= qq[i]) & (dat$alpha <= qq[i+1]),],span=0.5)
+  pp <- pp %>% add_trace(x=ll$x[order(ll$x)],
+          y=ll$fitted[order(ll$x)],
+          showlegend=T,
+          mode="lines",
+          hoverinfo="text",
+          text="",
+          name=paste0("Dec",i," [",signif(qq[i],1),",",signif(qq[i+1],1),"]"))
+}
+
+htmltools::div( pp, align="center" )
+rm(ll)
+
+```
+
+*Note:* Plot restricted to $N_{eff} < 200,000$ and $|h^2_g|<.5$ for visibility.  
+
+From the above plot, we see a strong relationship between the trend in $h^2_g$ at low sample sizes and $a$ from the fitted intercept. These trends also continue in the sample sizes below $N_{eff}=`r req_neff_round`$ excluded above. Specifically, phenotypes at low $N_{eff}$ with higher fitted intercepts (e.g. deciles 8-10) tend to have lower $h^2_g$ estimates (to the point of the average estimate being negative), while phenotypes with lower fitted estimates (including $a < 0$, which corresponds to intercepts below 1) have higher $h^2_g$ estimates. Phenotypes with nearly null intercepts (deciles 3-4, $a \approx 0$, intercept $\approx 1$) show no directional bias on average.
+
+It's worth noting that the trends conditional on estimated $a$ are likely to reflect both:
+
+* Effects of true stratification/confounding in the GWAS, such that the true value of $a$ is non-zero
+* Negative correlation of intercept and slope estimate from the LDSR regression when there's insufficient power to differentiate signal from noise
+* Unstable trends for the top/bottom decile due to limited phenotypes with low intercept alphas at high sample size, and (to a lesser extent) with high intercepts at low sample size.
+
+```{r neff_alpha_dist, echo=F}
+pp <- plot_ly(dat, 
+        y=~Neff,
+        x=~cut(alpha,breaks=quantile(alpha,probs = seq(0,1,.1)),include.lowest=TRUE),
+        split=~cut(alpha,breaks=quantile(alpha,probs = seq(0,1,.1)),include.lowest=TRUE),
+        type='violin',
+        box=list(visible=T),
+        meanline=list(visible=T),
+        color=~cut(alpha,breaks=quantile(alpha,probs = seq(0,1,.1)),include.lowest=TRUE),
+        colors=plotly_colors[c(2:10,1)],
+        height=300,width=800,
+        hoveron="points",
+        hoverinfo="text",
+        text=~description
+) %>% layout(
+  yaxis = list(title="Effective N"),
+  xaxis = list(title="intercept alpha decile",showticklabels=FALSE),
+  margin=list(b=65)
+)
+htmltools::div( pp, align="center" )
+```
+
+<br>
+
+The stability of the $h^2_g$ estimates may also be connected to the intercept $a$ even at high sample sizes. E.g. this is evident if we focus on the top 5 deciles of $a$ in effective sample sizes above 100,000.
+
+```{r h2_se_alpha, echo=F}
+pp <- plot_ly(dat,
+        x=~Neff,
+        y=~h2_liability_se,
+        type="scatter",
+        mode="markers",
+        hoverinfo="text",
+        colors=plotly_colors[c(1,7:10,1)],
+        height=300,width=800,
+        text = ~paste0(
+          "Phenotype: ", description,
+          "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Effective N: ", Neff))
+  
+
+
+qq <- quantile(dat$alpha,probs = seq(0,1,.1))
+for(i in 6:10){
+  ll <- loess(h2_liability_se ~ Neff, data=dat[(dat$alpha >= qq[i]) & (dat$alpha <= qq[i+1]),],span=0.5)
+  pp <- pp %>% add_trace(x=ll$x[order(ll$x)],
+          y=ll$fitted[order(ll$x)],
+          showlegend=T,
+          mode="lines",
+          line=list(color=plotly_colors[1+(i%%10)]),
+          hoverinfo="text",
+          text="",
+          name=paste0("Dec",i," [",signif(qq[i],1),",",signif(qq[i+1],1),"]"))
+}
+
+pp <- pp %>% layout(xaxis=list(title="Neff", range=c(100000,max(dat$Neff))),
+         yaxis=list(title="SE for SNP-h^2 estimate (liability)", range=c(0,.025)),
+         margin=list(b=65)
+         )
+
+htmltools::div( pp, align="center" )
+```
+
+<br>
+
+Nevertheless, to the extent the fitted $a$ estimates don't appear centered at zero (e.g. zero is covered by decile 3, mean $a = `r signif(mean(dat$alpha),3)`$, standard deviation $= `r signif(sd(dat$alpha),3)`$) it is likely the $a$ values do reflect some non-zero amounts of confounding/stratification in at least some of the phenotypes. It is unclear however to what extent the directional biases in $h^2_g$ conditional on $a$ reflect effects from the true value of $a$ versus correlated sampling noise in the intercept and slope estimates.
+
+The relationship to $a$ may also explain why the attenuation at low $N_{eff}$ is weaker in the Round 2 results than in Round 1. The Round 2 GWAS increased the number of PCA covariates and used PCs computed within the GWAS sample (i.e. within european ancestry individuals) rather than the PCs from the full UKB data (i.e. with all ancestries). As a result, stratification may be better controlled within the Round 2 results, thus any dependence of the $h^2_g$ results on $a$ at low $N_{eff}$ will have a weaker marginal effect than in Round 1 due to reduced true values of $a$.
+
+*Takeaway:* In either case, it is clear from the first figure above that there is strong dependence between $h^2_g$ and $a$ at low $N_{eff}$, with convergence to more stable $h^2_g$ estimates regardless of $a$ as $N_{eff}$ increase (subject to the instability from sparse representation of the $a$ decile or increased SEs of the $h^2_g$ estimate).
+
+</div>
+
+## **Conclusion** 
+
+From the plot of $h^2_g$ by $a$ decile, it appears LDSR $h^2_g$ estimates converge to stabilty in the $N_{eff}=20,000-40,000$ range. This is broadly consistent with the downsampling experiments above, though in some instances those show evidence of slightly slower convergence. Based on the above, we therefore denote our confidence in the LDSR $h^2_g$ results as follows:
+
+* $N_{eff} < 4500$: No confidence (see [minimum sample size requirements](#minimum-sample-size-requirements))
+* $4500 \leq N_{eff} < 20,000$: Low confidence
+* $20,000 \leq N_{eff} < 40,000$: Medium confidence
+* $N_{eff} \geq 40,000$: High confidence
+
+[*NB:* Of the criteria in this LDSR analysis, this choice is probably the least stable. The downsampling experiments remain unclear about the nature of biases at low $N_{eff}$, suggesting effects beyond what might be anticipated based on the full-sample estimate of $a$. As a result, thoughts about best practices for interpreting $h^2_g$ estimates in this intermediate range of $N_{eff}$ are still very much subject to change.]
+
+```{r set_neff, echo=F}
+
+dat$isLowNeff <- F
+dat$isLowNeff[dat$Neff>=4500 & dat$Neff<20000] <- T
+dat$confidence[dat$isLowNeff & (dat$confidence %in% c("medium","high"))] <- "low"
+
+dat$isMidNeff <- F
+dat$isMidNeff[dat$Neff>=20000 & dat$Neff<40000] <- T
+dat$confidence[dat$isMidNeff & dat$confidence=="high"] <- "medium"
+
+dat_full$isLowNeff <- F
+dat_full$isLowNeff[dat_full$Neff>=4500 & dat_full$Neff<20000] <- T
+dat_full$confidence[dat_full$isLowNeff & (dat_full$confidence %in% c("medium","high"))] <- "low"
+
+dat_full$isMidNeff <- F
+dat_full$isMidNeff[dat_full$Neff>=20000 & dat_full$Neff<40000] <- T
+dat_full$confidence[dat_full$isMidNeff & dat_full$confidence=="high"] <- "medium"
+
+datm_full$isLowNeff <- F
+datm_full$isLowNeff[datm_full$Neff>=4500 & datm_full$Neff<20000] <- T
+datm_full$confidence[datm_full$isLowNeff & (datm_full$confidence %in% c("medium","high"))] <- "low"
+
+datm_full$isMidNeff <- F
+datm_full$isMidNeff[datm_full$Neff>=20000 & datm_full$Neff<40000] <- T
+datm_full$confidence[datm_full$isMidNeff & datm_full$confidence=="high"] <- "medium"
+
+datf_full$isLowNeff <- F
+datf_full$isLowNeff[datf_full$Neff>=4500 & datf_full$Neff<20000] <- T
+datf_full$confidence[datf_full$isLowNeff & (datf_full$confidence %in% c("medium","high"))] <- "low"
+
+datf_full$isMidNeff <- F
+datf_full$isMidNeff[datf_full$Neff>=20000 & datf_full$Neff<40000] <- T
+datf_full$confidence[datf_full$isMidNeff & datf_full$confidence=="high"] <- "medium"
+
+
+
+dat <- dat[dat$confidence != "low", ]
+```
+
+<br>
+
+
+# Unusually large standard errors {#large-se}
+
+In assessing the minimum necessary sample size [above](#minimum-sample-size-requirements), we noted the relationship between sample size and the SE of the $h^2_g$ estimate. Although we focused on the average SE by sample size, it may also be observed that there are some clear outliers with larger SEs than would be anticipated based on their sample size.
+
+<div class="well">
+
+We focus here on phenotypes that are at least medium confidence based on $N_{eff}$.
+
+```{r h2_se_2, echo=F}
+pp <- plot_ly(dat,
+        x=~Neff,
+        y=~h2_liability_se,
+        type="scatter",
+        mode="markers",
+        color=~h2_liab,
+        colors=c("blue","darkorange"),
+        hoverinfo="text",
+        width=400,height=400,
+        text = ~paste0(
+          "Phenotype: ", description,
+          "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Effective N: ", Neff)) %>%
+  layout(xaxis=list(title="Neff"),
+         yaxis=list(title="SE of SNP-h^2 estimate (liability)"),
+         margin=list(b=65))
+htmltools::div( pp, align="center" )
+```
+
+<br>
+
+The clearest outlier here is red hair color (from UKB code 1747). In addition to the disproportionately large SE on the $h^2_g$ estimate for this phenotype, it also has a remarkably low intercept estimate which is also unstable (intercept = `r round(dat$intercept[dat$phenotype=="1747_2"],3)`, SE = `r round(dat$intercept_se[dat$phenotype=="1747_2"],3)`). A similar pattern is observed for the next two outliers, measures of bilirubin from the biomarker data (codes 30660 and 30840). Note that an intercept $<1$ is unexpected under the LDSR model, where variants tagging no signal (LD score of 0) should have a null expectation of 1 (for the 1 df $\chi^2$ statistic).
+
+Looking at the manhattan plot for the red hair phenotype, it becomes clear that the genetic signal is dominated by two loci. The manhattan plots for bilirubin are similarly sparse with even stronger top loci (not shown).
+
+
+```{r red_hair, fig.align='center', out.width=800, echo=F}
+knitr::include_graphics(paste0(params$imagedir,"/1747_2_MF.png"))
+```
+
+*Note:* y-axis truncated for *MC1R* locus on chromosome 16.
+
+LDSR is derived assuming a broadly polygenic architecture for each trait. Although sparser polygenicity doesn't fully invalidate the LDSR model (under a moments-based framework), it has previously been observed that LDSR is increasingly unstable for sparse architectures. 
+
+Although we hope that the reported SEs will accurately capture the instability of estimates for these phenotypes with sparse architectures, we may have lower confidence in these results. We may be particularly concerned about phenotypes where the SE is large and coupled with a low estimated intercept, which could in turn lead to over-estimation of $h^2_g$.
+
+Using the same loess fit as [above](#minimum-sample-size-requirements) to predict the expected SE based on $N_{eff}$, we evaluate the ratio between the observed and expected SE along with the fitted intercept.
+
+
+```{r h2_pred_se_ratio, echo=F}
+
+
+pp <- plot_ly(dat,
+        x=~intercept,
+        y=~h2_liability_se/pred_h2liab_se,
+        type="scatter",
+        mode="markers",
+        color=~h2_liab,
+        colors=c("blue","darkorange"),
+        hoverinfo="text",
+        width=400,height=400,
+        text = ~paste0(
+          "Phenotype: ", description,
+          "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
+          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Effective N: ", Neff)) %>%
+  layout(yaxis=list(title="Observed/Predicted ratio for SNP-h^2 SE"),
+         xaxis=list(title="LDSR intercept"),
+         margin=list(b=65))
+htmltools::div( pp, align="center" )
+
+```
+
+<br>
+
+The top outliers are observed for pigmentation-related traits, which have architectures similar to red hair as illustrated above, and other biomarkers like bilirubin. Following the biomarkers, the next set of phenotypes with larger-than-expected SEs are haematology measures, such as thrombocyte volume (UKB code 30100).
+
+
+```{r thrombocyte, fig.align='center', out.width=800, echo=F}
+knitr::include_graphics(paste0(params$imagedir,"/30100_raw_MF.png"))
+```
+
+*Takeaway:* Thrombocyte volume also has loci of very strong effect, but in the context of a more polygenic architecture.
+
+<br>
+
+Although the unexpectedly large SEs for phenotypes like thrombocyte volume are still worrisome, they are less concerning than the stronger outliers for pigmentation-related traits and biomarkers like bilirubin whose GWAS signals are driven by only a handful of loci.
+
+</div>
+
+## **Conclusion** 
+
+We mark reduced confidence in phenotypes with unexpectedly large SEs as follows:
+
+* Low confidence: All hair color levels (UKB code 1747), plus other items with Observed/Expected SE ratios > 12 and intercepts < 1.1
+* Medium confidence: All other items with Observed/Expected SE ratios > 6
+
+All affected measures are pigmentation-related or biomarker or haemotology measures. [*NB:* Height (UKB code 50) is just barely under the 6x ratio of observed vs. expected SE. It's a borderline decision. We choose to give it some leeway given the general trend that higher $h^2_g$ also has higher SE and height has very strong $h^2_g$.]
+
+<br>
+
+```{r spiky_conf, echo=F}
+
+dat$isExtremeSE <- F
+dat$isExtremeSE[startsWith(dat$phenotype,"1747_") | (dat$intercept < 1.1 & (dat$h2_liability_se/dat$pred_h2liab_se) > 12)] <- T
+dat$confidence[dat$isExtremeSE & (dat$confidence %in% c("medium","high"))] <- "low"
+
+dat$isHighSE <- F
+dat$isHighSE[(dat$h2_liability_se/dat$pred_h2liab_se) > 6 & !dat$isExtremeSE] <- T
+dat$confidence[dat$isHighSE & dat$confidence=="high"] <- "medium"
+
+dat_full$isExtremeSE <- F
+dat_full$isExtremeSE[startsWith(dat_full$phenotype,"1747_") | (dat_full$intercept < 1.1 & (dat_full$h2_liability_se/(1/sqrt(predict(llmod, newdata=dat_full$Neff)))) > 12)] <- T
+dat_full$confidence[dat_full$isExtremeSE & (dat_full$confidence %in% c("medium","high"))] <- "low"
+
+dat_full$isHighSE <- F
+dat_full$isHighSE[(dat_full$h2_liability_se/(1/sqrt(predict(llmod, newdata=dat_full$Neff)))) > 6 & !dat_full$isExtremeSE] <- T
+dat_full$confidence[dat_full$isHighSE & dat_full$confidence=="high"] <- "medium"
+
+datm_full$isExtremeSE <- F
+datm_full$isExtremeSE[startsWith(datm_full$phenotype,"1747_") | (datm_full$intercept < 1.1 & (datm_full$h2_liability_se/(1/sqrt(predict(llmod, newdata=datm_full$Neff)))) > 12)] <- T
+datm_full$confidence[datm_full$isExtremeSE & (datm_full$confidence %in% c("medium","high"))] <- "low"
+
+datm_full$isHighSE <- F
+datm_full$isHighSE[(datm_full$h2_liability_se/(1/sqrt(predict(llmod, newdata=datm_full$Neff)))) > 6 & !datm_full$isExtremeSE] <- T
+datm_full$confidence[datm_full$isHighSE & datm_full$confidence=="high"] <- "medium"
+
+datf_full$isExtremeSE <- F
+datf_full$isExtremeSE[startsWith(datf_full$phenotype,"1747_") | (datf_full$intercept < 1.1 & (datf_full$h2_liability_se/(1/sqrt(predict(llmod, newdata=datf_full$Neff)))) > 12)] <- T
+datf_full$confidence[datf_full$isExtremeSE & (datf_full$confidence %in% c("medium","high"))] <- "low"
+
+datf_full$isHighSE <- F
+datf_full$isHighSE[(datf_full$h2_liability_se/(1/sqrt(predict(llmod, newdata=datf_full$Neff)))) > 6 & !datf_full$isExtremeSE] <- T
+datf_full$confidence[datf_full$isHighSE & datf_full$confidence=="high"] <- "medium"
+
+dat <- dat[dat$confidence != "low", ]
+```
+
+
+# Sex-biased phenotypes {#sex-bias}
+
+We noted [when selecting primary results for each phenotype](select_topline.html#sex-specific-phenotypes) that although we were designating the both-sex analysis as the primary analysis where possible that we would revisit the question of results for phenotypes with a strong sex bias. We revisit that question here.
+
+<div class="well">
+
+We first look at the sex balance of phenotypes using a `both_sexes` GWAS that passed the minimum sample size filters and have high confidence after the previous checks in this section.
+
+```{r sex_bias_conf, echo=F}
+
+sex_ns2 <- sex_ns[sex_ns$phenotype %in% dat$phenotype[dat$sex=="both_sexes"],]
+rm(sex_ns)
+
+pp <- plot_ly(sex_ns2[!(is.na(sex_ns2$n_fem) | is.na(sex_ns2$n_mal)),],
+        x=~n_fem/(n_fem+n_mal),
+        type="histogram",
+        showlegend=F,
+        hoverinfo="none",
+        width=400, height=400
+        ) %>% layout(
+  xaxis = list(title="Proportion of samples who are female", range=c(0,1)),
+  margin=list(b=65)
+)
+htmltools::div( pp, align="center" )
+
+```
+
+*Takeaway:* Sample sizes are nicely balanced between sexes. The small tail of items with >60% female samples primarily consists of depression-related questions.
+
+As before, we can similarly check the balance among cases and among controls for binary phenotypes.
+
+```{r sex_bias_cc_conf, echo=F}
+pp1 <- plot_ly(sex_ns2[!(is.na(sex_ns2$n_case_fem) | is.na(sex_ns2$n_case_mal)),],
+        x=~n_case_fem/(n_case_fem+n_case_mal),
+        type="histogram",
+        showlegend=F,
+        hoverinfo="none",
+        width=400, height=400
+        ) %>% layout(
+  xaxis = list(title="Proportion of cases who are female", range=c(0,1)),
+  title = "cases",
+  margin=list(b=65)
+)
+
+pp2 <- plot_ly(sex_ns2[!(is.na(sex_ns2$n_case_fem) | is.na(sex_ns2$n_case_mal)),],
+        x=~n_control_fem/(n_control_fem+n_control_mal),
+        type="histogram",
+        showlegend=F,
+        hoverinfo="none",
+        width=400, height=400
+        ) %>% layout(
+  xaxis = list(title="Proportion of controls who are female", range=c(0,1)),
+  title = "controls",
+  margin=list(b=65)
+)
+
+htmltools::div(
+  style = "display: flex; flex-wrap: wrap; justify-content: center",
+  htmltools::div(pp1),
+  htmltools::div(pp2)
+)
+```
+
+Although these phenotypes are mostly balanced, there is a clear remaining tail of phenotypes with strong sex bias among cases.
+
+We don't have particularly strong reasons to be concerned about LDSR results for phenotypes with strong sex differences. Noteably the GWAS is already conditioned on sex as a covariate (as well as $Sex \times Age$ interactions). On the other hand, we may have some concerns over whether the phenotype has the same meaning in both sexes or whether there are for example differential ascertainment biases affecting each sex in the GWAS sample. In both cases, this concern can be summarized as a worry over the potential for $G \times Sex$ interactions (either in the population or as an artifact within sample). On that basis, we choose to flag phenotypes with strong sex differences in sample size as somewhat lower confidence.
+
+```{r apply_sex_bias, echo=F}
+sex_drop1 <- sex_ns2[sex_ns2$n_fem/(sex_ns2$n_fem+sex_ns2$n_mal) > .75 |
+                     sex_ns2$n_fem/(sex_ns2$n_fem+sex_ns2$n_mal) < .25 |   
+                     ((sex_ns2$n_case_fem/(sex_ns2$n_case_fem+sex_ns2$n_case_mal) > .75 | 
+                       sex_ns2$n_case_fem/(sex_ns2$n_case_fem+sex_ns2$n_case_mal) < .25 | 
+                       sex_ns2$n_control_fem/(sex_ns2$n_control_fem+sex_ns2$n_control_mal) > .75 | 
+                       sex_ns2$n_control_fem/(sex_ns2$n_control_fem+sex_ns2$n_control_mal) < .25) &
+                      !is.na(sex_ns2$n_case_fem)),"phenotype"]
+sex_drop1 <- sex_drop1[!is.na(sex_drop1) & (sex_drop1 %in% dat$phenotype[dat$sex=="both_sexes"])]
+
+sex_drop2 <- onesex_ns[onesex_ns$n_sex/onesex_ns$n > 0.75 |
+                        (!is.na(onesex_ns$n_case) & 
+                         ((onesex_ns$n_case_sex/onesex_ns$n_case > 0.75) |
+                         (onesex_ns$n_control_sex/onesex_ns$n_control > 0.75))), "phenotype"]
+sex_drop2 <- sex_drop2[!is.na(sex_drop2) & (sex_drop2 %in% dat$phenotype[dat$sex=="both_sexes"])]
+
+idx_sexconf <- (dat$phenotype %in% c(as.character(sex_drop1),as.character(sex_drop2)) & dat$sex=="both_sexes")
+dat$isSexBias <- F
+dat$isSexBias[idx_sexconf] <- T
+dat$confidence[dat$isSexBias & dat$confidence=="high"] <- "medium"
+
+
+
+# same checks in dat_full
+# (not required in datf, datm since this is specifically a concern about both_sexes analyses)
+dat_full_fem_idx <- match(dat_full$phenotype, datf_full$phenotype)
+dat_full_fem_idx_na <- is.na(dat_full_fem_idx)
+dat_full_fem_n <- rep(NA,nrow(dat_full))
+dat_full_fem_ncase <- rep(NA,nrow(dat_full))
+dat_full_fem_ncontrol <- rep(NA,nrow(dat_full))
+dat_full_fem_n[!dat_full_fem_idx_na] <- datf_full$n[dat_full_fem_idx[!dat_full_fem_idx_na]]
+dat_full_fem_ncase[!dat_full_fem_idx_na] <- datf_full$n_cases[dat_full_fem_idx[!dat_full_fem_idx_na]]
+dat_full_fem_ncontrol[!dat_full_fem_idx_na] <- datf_full$n_controls[dat_full_fem_idx[!dat_full_fem_idx_na]]
+
+
+dat_full$isSexBias <- F
+dat_full$isSexBias[!is.na(dat_full_fem_n) & dat_full_fem_n/dat_full$n > .75] <- T
+dat_full$isSexBias[!is.na(dat_full_fem_n) & dat_full_fem_n/dat_full$n < .25] <- T
+dat_full$isSexBias[!is.na(dat_full_fem_n) & !is.na(dat_full$n_cases) & dat_full_fem_ncase/dat_full$n_cases > .75] <- T
+dat_full$isSexBias[!is.na(dat_full_fem_n) & !is.na(dat_full$n_cases) & dat_full_fem_ncase/dat_full$n_cases < .25] <- T
+dat_full$isSexBias[!is.na(dat_full_fem_n) & !is.na(dat_full$n_cases) & dat_full_fem_ncontrol/dat_full$n_controls > .75] <- T
+dat_full$isSexBias[!is.na(dat_full_fem_n) & !is.na(dat_full$n_cases) & dat_full_fem_ncontrol/dat_full$n_controls < .25] <- T
+dat_full$confidence[dat_full$isSexBias & dat_full$confidence=="high"] <- "medium"
+
+
+datf_full$isSexBias <- F
+datm_full$isSexBias <- F
+
+rm(onesex_ns)
+rm(sex_ns2)
+```
+
+</div>
+
+## **Conclusion** 
+
+We denote as "medium" confidence `r sum(idx_sexconf & !dat$isMidNeff)` phenotypes where >75% of cases are from a single sex. 
+
+<div class="well">
+
+```{r sexbias_list, echo=F, comment=NA}
+
+datatable(dat[dat$isSexBias & !dat$isMidNeff,c("phenotype","description")], 
+		  rownames = F, 
+		  colnames = c("Code","Phenotype"), 
+#		  extensions='FixedHeader', 
+		  selection="none",
+		  style="bootstrap", 
+		  class="nowrap display", 
+		  escape=F,
+		  options = list(autowidth=F, scrollY="400px", scrollX='400px', pageLength=50, dom='t')#, fixedColumns=TRUE), 
+)
+```
+
+<br>
+
+[For reference, phenotypes narrowly avoiding the 3:1 threshold for reduced confidence here include: use of soy milk, taking vitamin D supplements, attending adult education classes, having gallstones, and additional headache and heart heath phenotypes.]
+
+We only flag these phenotypes as "medium" confidence (as opposed to "low") since this is an arbitrary threshold and is only being considered out of an abundance of caution. We would also flag phenotypes with >75% of total sample size or >75% of controls from a single sex, but no such phenotypes are present here. An additional `r sum(idx_sexconf & dat$isMidNeff)` phenotypes that would meet these criteria for sex-biased prevalence are already marked as medium confidence due to limited sample size.
+
+</div>
+
+<br>
+
+# Phenotypes with ordinal coding issues {#ordinal}
+
+In reviewing the phenotypes for this GWAS release, it was noted that the automated phenotype processing with [PHESANT](https://github.com/astheeggeggs/PHESANT) used for the GWAS yielded a small number of phenotypes with poor/uninterpretable encodings of UKB participant answers. Specifically, the issue is variables identified as ordinal by PHESANT where the labels for the ordinal levels are non-sequential numeric values and/or do not reflect that natural numeric ordering/spacing of the available response categories. For most of the identified cases this would be fine if the ordinal phenotypes were being analyzed with e.g. ordinal logistic regression as originally intended by [PHESANT](https://github.com/MRCIEU/PHESANT), but since the Neale Lab GWAS uses linear regression for all phenotypes the ordinal coding does impact the current GWAS results.
+
+We focus here on two categories of phenotypes:
+
+* Ordinal phenotypes whose levels are not coded as sequential integers
+
+* Ordinal phenotypes whose integer coding does not reflect the scaling of quasi-numeric response categories
+
+## Non-sequential ordinal coding
+
+<div class="well">
+
+A review of the PHESANT output for the phenotypes in the Neale lab GWAS finds 7 phenotypes with non-sequential codes. In other words, there are phenotypes that are marked as ordinal variables but don't end up with values of `[1,2,...,k]` or `[0,1,...,(k-1)]` (where $k$ is the number of response categories) in the post-PHESANT phenotypes for GWAS. The 7 identified phenotypes are: 
+
+| Pheno. | Description | Ordinal Levels |
+|-|--|--|
+| [4270](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4270) | Volume level set by participant (left) | `[10, 20, 40, 70, 100]` |
+| [4277](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4277) | Volume level set by participant (right) | `[10, 20, 40, 70, 100]` |
+| [4814](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4814) | Tinnitus severity/nuisance | `[4, 11, 12, 13]` |
+| [100010](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=100010) | Portion size | `[5, 10, 15]` |
+| [100400](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=100400) | Standard tea intake | `[0, 1, 2, 3, 4, 5, 600]` |
+| [102290](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=102290) | Dark chocolate intake | `[0, 1, 2, 3, 4, 6]` |
+| [104920](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=104920) | Time spent doing light physical activity | `[0, 1, 13, 35, 57, 79, 912, 1200]` |
+
+We review each of these in turn.
+
+* 4270 and 4277 report the volume percentage selected by the participant. Although this is marked as ordinal, the response coding reflects the numerical level of the percentages. This is not problematic.
+
+* 4814 codes reported tinnitis severity. It appears PHESANT missed recoding this variable, instead keeping the original UKB encoding of `4: Not at all`, `11: Severely`, `12: Moderately`, and `13: Slightly`. Is it evident that both the ordering and scaling of the codes is problematic.
+
+* 100010 reflects the raw UKB encoding for portion size of `5: smaller`, `10: average`, or `15: larger` than normal portion sizes. Although a `[1,2,3]` encoding might be more conventional here, no harm is done by this alternate coding.
+
+* 100400 codes the number of cups of tea consumed, with a code of `600` reflecting a reponse of `6+`. Obviously this coding gives dramatically outsized weight to the `6+` response in an unintended way, giving numeric weight to a placeholder value used by UKB to distinguish the `6+` response from a simple `6`. Using this value for GWAS is problematic.
+
+* 102290 codes chocolate intake, and correctly recodes/reorders from the placeholder values reported by UKB for the number of chocolate bars consumed: `444: quarter` becomes 1, `555: half` becomes 2, `1: 1` becomes 3, `2: 2` becomes 4, `3: 3` becomes 5, `4: 4`: becomes 6, and `500: 5+` becomes 7, with a default value of 0 added for people who took the corresponding diet questionanaire but didn't report any chocolate intake. The non-sequential values occur because the the response categories for `3` and `5+` are dropped for having too few respondants. Dropping these levels may make sense for an ordinal regression, but is suboptimal for our linear regression. Giving the `quarter` and `half` response levels integer coding may also distort the phenotypic scaling in a linear regression. Thus in sum, the non-sequential codes are understandable but the encoding may still have issues; we return to this potentially error mode in the next section. 
+
+* 104920 also appears to have missed recoding of the ordinal levels by PHESANT. The reported values conflate a range of hours spent on the activity (`0: None`, `1: Under 1 hour`, `13: 1-3 hours`, `35: 3-5 hours`, `57: 5-7 hours`, `79: 7-9 hours`, `912: 9-12 hours`, and `1200: 12+ hours`). Like the tea intake item, these are clearly placeholders and not well-suited to GWAS. The clearly nonlinear relationship between these codes and the underlying number of hours being reported is likely problematic.
+
+*Takeaway:* Phenotypes 4814, 100400, and 104920 are clearly problematic, phenotypes 4270, 4277, and 100010 are fine with their current codings, and phenotype 104920 is concerning but not severely broken. The next section considers additional phenotypes like 104920 with potentially nonlinear encodings.
+
+</div>
+
+<br>
+
+## Quasi-numeric ordinal phenotypes
+
+<div class="well">
+
+As is evident in the ordinal phenotypes considered above, many of the ordinal phenotypes in UK Biobank reflect response options with some degree of numeric meaning. This is evident in the case of the diet items above, where even when converted to ordinal codings as intended by PHESANT (i.e. 102290) the result is fractional values getting treated as integers and thus a nonlinearity of the numeric treatment of the phenotype. 
+
+We therefore review the codings for all `r length(unique(dat$phenotype[dat$variable_type=="ordinal"]))` ordinal variables to identify phenotypes whose codings potentially reflect nonlinear codings of implied numeric values in the response categories. Three examples of phenotype codes with this kind of potential issue are shown below:
+
+**Ever taken cannabis**
+
+| coding | meaning |
+|-|-|
+| 0 | No |
+| 1 | Yes, 1-2 times |
+| 2 | Yes, 3-10 times |
+| 3 | Yes, 11-100 times |
+| 4 | Yes, more than 100 times |
+
+**Dark chocolate intake**
+
+| coding | meaning |
+|-|-|
+| 1 | quarter |
+| 2 | half |
+| 3 | 1 |
+| 4 | 2 |
+| 5 | 3 |
+| 6 | 4 |
+| 7 | 5+ |
+
+**Duration of worst depression**
+
+| coding | meaning |
+|-|-|
+| 1 | Less than a month |
+| 2 | Between one and three months |
+| 3 | Over three months, but less than six months |
+| 4 | Over six months, but less than 12 months |
+| 5 | One to two years |
+| 6 | Over two years |
+
+Codes are shown after the recoding done by PHESANT. The cannabis item is especially illustrative since it shows the strongly nonlinearity potentially present in the ordinal codings while simultaneously showing a scenario where that nonlinearity may be desirable (e.g. focusing on comparison of use ever vs. occassionally vs. frequently).
+
+```{r load_ord_codes, echo=F}
+# phenotypes with potentially suboptimal ordinal codes
+# get based on coding, then match to phenotype number
+num_codings_file <- readLines(params$ordwarn)
+num_codings <- sapply(num_codings_file[grep("Code:",num_codings_file)],function(a){strsplit(a," ")[[1]][2]})
+
+# showcase: https://github.com/astheeggeggs/PHESANT/raw/master/variable-info/Data_Dictionary_Showcase.csv
+showcase <- read.delim(params$datadict,header=T,stringsAsFactors=F,sep=',',quote="")
+showcase <- showcase[!is.na(showcase$Coding) & showcase$Coding != "",]
+
+num_ord <- showcase$FieldID[showcase$Coding %in% num_codings]
+rm(showcase)
+```
+
+
+After review, we identify a total of `r length(num_codings)` response codings covering `r sum(num_ord %in% dat$phenotype)` phenotypes that appear at risk for this kind of nonlinear encoding of quasi-numeric response categories. A full list of the identified codings is available [here](ukb_ord_codings_warn.txt). Because the ordinal encodings of these items may bias the GWAS results compared to a GWAS of the implied numeric quantity, we designate the $h^2_g$ results for these ordinal phenotypes as "medium" confidence to reflect the impact on interpretability. 
+
+Note the chosen list of codings is intentionally broad, and thus this reduction of confidence is likely conservative. In many cases, the coding may be close enough to linear and/or may reflect intentional choices of a scale most informative for the phenotype (e.g. the cannabis coding above), and thus the reduced confidence is unnecessary. Nevertheless, we err on the side of caution, especially since we expect the "medium" confidence results to still be included for most uses of these $h^2_g$ results, and thus use this opportunity to flag the affected ordinal phenotypes are deserving additional attention with regards to interpretation.
+
+</div>
+
+<br>
+
+## **Conclusion**
+
+```{r ord_code_probs, echo=F}
+
+# phenotypes with hopeless ordinal codes
+bad_ord <- c("4814", "100400", "104920")
+
+dat$isBadOrdinal <- F
+dat$isBadOrdinal[dat$phenotype %in% bad_ord] <- T
+dat$confidence[dat$isBadOrdinal & (dat$confidence %in% c("medium","high"))] <- "low"
+
+dat_full$isBadOrdinal <- F
+dat_full$isBadOrdinal[dat_full$phenotype %in% bad_ord] <- T
+dat_full$confidence[dat_full$isBadOrdinal & (dat_full$confidence %in% c("medium","high"))] <- "low"
+
+datm_full$isBadOrdinal <- F
+datm_full$isBadOrdinal[datm_full$phenotype %in% bad_ord] <- T
+datm_full$confidence[datm_full$isBadOrdinal & (datm_full$confidence %in% c("medium","high"))] <- "low"
+
+datf_full$isBadOrdinal <- F
+datf_full$isBadOrdinal[datf_full$phenotype %in% bad_ord] <- T
+datf_full$confidence[datf_full$isBadOrdinal & (datf_full$confidence %in% c("medium","high"))] <- "low"
+
+dat <- dat[dat$confidence != "low", ]
+
+
+# phenotypes with quasi-numeric nonlinear ordinal codes
+dat$isNumericOrdinal <- F
+dat$isNumericOrdinal[dat$phenotype %in% num_ord & !dat$isBadOrdinal] <- T
+dat$confidence[dat$isNumericOrdinal & dat$confidence=="high"] <- "medium"
+
+dat_full$isNumericOrdinal <- F
+dat_full$isNumericOrdinal[dat_full$phenotype %in% num_ord & !dat_full$isBadOrdinal] <- T
+dat_full$confidence[dat_full$isNumericOrdinal & dat_full$confidence=="high"] <- "medium"
+
+datm_full$isNumericOrdinal <- F
+datm_full$isNumericOrdinal[datm_full$phenotype %in% num_ord & !datm_full$isBadOrdinal] <- T
+datm_full$confidence[datm_full$isNumericOrdinal & datm_full$confidence=="high"] <- "medium"
+
+datf_full$isNumericOrdinal <- F
+datf_full$isNumericOrdinal[datf_full$phenotype %in% num_ord & !datf_full$isBadOrdinal] <- T
+datf_full$confidence[datf_full$isNumericOrdinal & datf_full$confidence=="high"] <- "medium"
+
+```
+
+UKB phenotypes 4814, 100400, and 104920 are marked as "low" confidence due to clear problems with the numeric values of their non-sequenital coding of ordinal response categories.
+
+A set of `r length(num_ord)` ordinal phenotypes whose coded response levels may not fully reflect the numeric scaling of the items response categories are designated as "medium" confidence to highlight that additional follow-up may be required for interpreting their GWAS and $h^2_g$ results.
+
+<br>
+
+# Summary of phenotype confidence {#summary}
+
+In sum, the above process leaves us with:
+
+<div class="well">
+
+```{r conf_crosstabs, echo=F, comment=NA}
+dat_all <- rbind(dat_full, datf_full, datm_full)
+rm(dat_full)
+rm(datf_full)
+rm(datm_full)
+
+
+dat_all$notes[dat_all$notes != ""] <- paste0(dat_all$notes[dat_all$notes != ""],";")
+for(flag in c("isNotPrimary","isBadPower","isLowNeff","isMidNeff","isExtremeSE","isHighSE","isSexBias","isBadOrdinal","isNumericOrdinal")){
+  dat_all$notes[dat_all[,flag]] <- paste0(dat_all$notes[dat_all[,flag]],flag,";")
+  dat$notes[dat[,flag]] <- paste0(dat$notes[dat[,flag]],flag,";")
+}
+
+# handle p=0
+dat_all$int_p_text <- as.character(signif(dat_all$intercept_p, 3))
+dat_all$int_p_text[dat_all$intercept_p==0] <- as.character(format(mpfr(0.5,64)*erfc(mpfr(dat_all$intercept_z[dat_all$intercept_p==0],64)/sqrt(mpfr(2,64))),max.digits=3,scientific=T))
+
+
+# table(dat_all$notes,dat_all$confidence)
+# table(dat_all$notes[!dat_all$isNotPrimary],dat_all$confidence[!dat_all$isNotPrimary])
+# table(dat$notes,dat$confidence)
+```
+
+| Confidence | Count | Description |
+|-|-|-----|
+| NA | `r sum(dat_all$confidence=="NA_(not_primary)")` | not the primary analysis (sex-specific subset, un-normalized, redundant) |
+| None | `r sum(dat_all$confidence=="none")` | $N_{eff} < 4500$ |
+| Low | `r sum(dat_all$confidence=="low")` | $N_{eff} < 20000$, or $SE > 12\times$ expected with low intercept, or bad ordinal coding |
+| Medium | `r sum(dat_all$confidence=="medium")` | $N_{eff} = 20000-40000$, or $SE > 6\times$ expected, or >3:1 sex bias, or nonlinear ordinal coding of numeric values |
+| High | `r sum(dat_all$confidence=="high")` | remaining phenotypes |
+
+
+```{r save_temp_dat, echo=F}
+
+con1 <- gzfile(paste0(params$outdir,"/h2_topline_conf_temp.tsv.gz"),"w")
+write.table(dat_all,file=con1,sep='\t',col.names=T,row.names=F,quote=F)
+close(con1)
+
+```
+
+We then consider the [statistical significance](significance.html) of the $h^2_g$ results where we have at least some confidence in the LDSR estimate.
+
+</div>
+
+<br>
+
+***
+
+# Credits
+
+<div class="well">
+
+* **Primary analysis:** Raymond Walters (any and all mistakes above are mine)
+* **LDSR analysis support:** Nikolas Baya, Katherine Tashman, Danfeng Chen, Liam Abbott
+* **LDSR downsampling results:** Nikolas Baya
+* **Manhattan plots:** Andrea Ganna (and check out [GWASbot](http://twitter.com/SbotGwa))
+* **Phenotype analysis support**: Caitlin Carey, Duncan Palmer
+* **Supervision**: Benjamin Neale
+* **UK Biobank GWAS Core Team:** Liam Abbott, Sam Bryant, Claire Churchhouse, Andrea Ganna, Daniel Howrigan, Duncan Palmer, Ben Neale, Raymond Walters, Caitlin Carey, The Hail team
+* **UK Biobank GWAS Contributors:** Verneri Anttila, Krishna Aragam, Alex Baumann, Joanne Cole, Mark J. Daly, Rob Damian, Mary Haas, Joel Hirschhorn, Eric Jones, Ruchi Munshi, Manuel Rivas, Sailaja Vedantam
+
+With additional thanks to Alex Bloemendal, Patrick Turley, Robert Maier, Michel Nivard, Steven Gazal, Tarjinder Singh, and many others for helpful conversations.
+
+</div>
+
+***
+
+
