@@ -1,6 +1,7 @@
 ---
 title: "Selecting Primary UKB Round 2 Phenotypes for LDSR Analysis"
 date: "Last updated `r format(Sys.Date())`"
+author: "Results from the [Neale Lab](credits.html)"
 output:
   html_document:
     toc: true
@@ -88,12 +89,12 @@ datm <- dat_load[dat_load$sex == "male",]
 
 # Overview
 
-The [UKB Round 2 GWAS](https://github.com/Nealelab/UK_Biobank_GWAS) contains `r nrow(dat_load)` GWAS of `r length(unique(dat_load$phen_stem))` unique phenotype codes (`r length(unique(dat_load$phen_stem[dat_load$source=="phesant"]))` PHESANT + `r length(unique(dat_load$phen_stem[dat_load$source=="finngen"]))` FinnGEN + `r length(unique(dat_load$phen_stem[dat_load$source=="icd10"]))` ICD10 + `r length(unique(dat_load$phen_stem[dat_load$source=="biomarkers"]))` biomarkers + `r length(unique(dat_load$phen_stem[dat_load$source=="covariate"]))` covariates). For many of these phenotypes, however, there are multiple GWAS, due to:
+The [UKB Round 2 GWAS](https://github.com/Nealelab/UK_Biobank_GWAS) contains `r nrow(dat_load)` GWAS of `r length(unique(dat_load$phen_stem))` unique phenotype codes (`r length(unique(dat_load$phen_stem[dat_load$source=="phesant"]))` [PHESANT](https://github.com/astheeggeggs/PHESANT) + `r length(unique(dat_load$phen_stem[dat_load$source=="finngen"]))` [FinnGen](https://www.finngen.fi/en) + `r length(unique(dat_load$phen_stem[dat_load$source=="icd10"]))` ICD10 + `r length(unique(dat_load$phen_stem[dat_load$source=="biomarkers"]))` biomarkers + `r length(unique(dat_load$phen_stem[dat_load$source=="covariate"]))` covariates). For many of these phenotypes, however, there are multiple GWAS, due to:
 
 * Consideration of both [inverse rank-normal transformed (IRNT)](#irnt) and raw untransformed versions of `r length(unique(dat_load$phen_stem[dat_load$variable_type == "continuous_irnt"]))` continuous phenotypes
 * Consideration of whether to include the [dilution factor](#dilution) as a covariate for the `r length(unique(dat_load$phen_stem[dat_load$source=="biomarkers"]))` biomarker phenotypes
 * Available [sex-stratified](#sex-spec) results for most phenotypes
-* Redundancy among the [FinnGEN codes](#finngen) constructed from ICD diagnoses
+* Redundancy among the [FinnGen codes](#finngen) constructed from ICD diagnoses
 
 Our first task for the LD Score regression analyses, then, is to get a "primary" result for each phenotype.
 
@@ -284,7 +285,7 @@ rm(biodat)
 
 # Choosing IRNT vs. raw untransformed continuous phenotypes {#irnt}
 
-The Round 1 GWAS rank-normalized all continuous phenotypes. In Round 2, untransformed copies of the continuous phenotypes were also GWASed for the purposes of evaluating whether rank-normalizing was beneficial. Here we compare the raw and IRNT versions of all of the continuous phenotypes from PHESANT that were GWASed in `both_sexes` (i.e. that aren't sex-specific).
+The Round 1 GWAS rank-normalized all continuous phenotypes. In Round 2, untransformed copies of the continuous phenotypes were also GWASed for the purposes of evaluating whether rank-normalizing was beneficial. Here we compare the raw and IRNT versions of all of the continuous phenotypes from [PHESANT](https://github.com/astheeggeggs/PHESANT) that were GWASed in `both_sexes` (i.e. that aren't sex-specific).
 
 Specifically, we evaluate whether:
 
@@ -488,9 +489,9 @@ dat <- dat[dat$keep,]
 
 <br>
 
-# Removing redundant FinnGEN codes {#finngen}
+# Removing redundant FinnGen codes {#finngen}
 
-During review of the GWAS phenotypes, we identified some instances where a FinnGEN code corresponds to a phenotype that is identical to another GWASed FinnGEN code and in thus redundant. The most common case is pairs with codes `C_*` and `C3_*` with the same name, description,and sample size. For example, both `C_OTHER_SKIN` and `C3_OTHER_SKIN` are phenotypes for "Other malignant neoplasms of skin", and both have 14,402 cases and 346,792 controls. We identify and mark as redundant those phenotypes here.
+During review of the GWAS phenotypes, we identified some instances where a [FinnGen](https://www.finngen.fi/en) code corresponds to a phenotype that is identical to another GWASed FinnGen code and in thus redundant. The most common case is pairs with codes `C_*` and `C3_*` with the same name, description,and sample size. For example, both `C_OTHER_SKIN` and `C3_OTHER_SKIN` are phenotypes for "Other malignant neoplasms of skin", and both have 14,402 cases and 346,792 controls. We identify and mark as redundant those phenotypes here.
 
 <div class="well">
 
@@ -543,7 +544,7 @@ datatable(fg_pairs,
 
 ## **Conclusion**
 
-For these pairs, we drop the phenotype listed in the second column as redundant. This leads to the removal of `r length(unique(rownames(fg_rr)[fg_cor1[,2]]))` FinnGEN phenotype codes, leaving `r length(unique(dat_load$phen_stem[!(dat_load$phen_stem %in% fg_pairs[,2])]))` unique phenotype codes among the GWAS.
+For these pairs, we drop the phenotype listed in the second column as redundant. This leads to the removal of `r length(unique(rownames(fg_rr)[fg_cor1[,2]]))` [FinnGen](https://www.finngen.fi/en) phenotype codes, leaving `r length(unique(dat_load$phen_stem[!(dat_load$phen_stem %in% fg_pairs[,2])]))` unique phenotype codes among the GWAS.
 
 ```{r drop_finngen_dupe, echo=F}
 
@@ -561,7 +562,7 @@ rm(fg_rr)
 
 # Sex-specific phenotypes {#sex-spec}
 
-UKB includes a number of sex-specific phenotypes, meaning that not all phenotypes have a `both_sexes` version of the analysis. In addition, although some of these are specified by UKB and thus coded as such (e.g. all members of the non-applicable sex are marked as missing), others do not exclude non-applicable sex, for example treating them as controls. The Round 2 GWAS included strong efforts to address phenotypes with this issue, particularly among the PHESANT phenotypes, but we still have some GWAS where there's a `both_sexes` analysis of a sex-specific phenotype. Therefore the goal here is to verify that we have the appropriate version of each phenotype respecting sex-specificity where applicable.
+UKB includes a number of sex-specific phenotypes, meaning that not all phenotypes have a `both_sexes` version of the analysis. In addition, although some of these are specified by UKB and thus coded as such (e.g. all members of the non-applicable sex are marked as missing), others do not exclude non-applicable sex, for example treating them as controls. The Round 2 GWAS included strong efforts to address phenotypes with this issue, particularly among the [PHESANT](https://github.com/astheeggeggs/PHESANT) phenotypes, but we still have some GWAS where there's a `both_sexes` analysis of a sex-specific phenotype. Therefore the goal here is to verify that we have the appropriate version of each phenotype respecting sex-specificity where applicable.
 
 Our process is as follows:
 
@@ -1037,7 +1038,7 @@ For all phenotypes in this set (i.e. having GWAS in `both_sexes` and one sex, bu
 
 ## Summary
 
-To summarize, after excluding biomarker GWAS with the dilution factor covariate, `raw` versions of continuous phenotypes, and the redundant FinnGEN codes, there are `r nrow(dat_load[!(!is.na(dat_load$dilute) & dat_load$dilute) & !grepl("_raw",dat_load$phenotype) & !(dat_load$phen_stem %in% fg_pairs[,2]),])` total GWAS.
+To summarize, after excluding biomarker GWAS with the dilution factor covariate, `raw` versions of continuous phenotypes, and the redundant FinnGen codes, there are `r nrow(dat_load[!(!is.na(dat_load$dilute) & dat_load$dilute) & !grepl("_raw",dat_load$phenotype) & !(dat_load$phen_stem %in% fg_pairs[,2]),])` total GWAS.
 
 ```{r start_sex_sum, echo=F}
 # summary before resolving sex
@@ -1105,24 +1106,3 @@ close(con6)
 ```
 
 ***
-
-# Credits
-
-<div class="well">
-
-* **Primary analysis:** Raymond Walters (any and all mistakes above are mine)
-* **LDSR analysis support:** Nikolas Baya, Katherine Tashman, Danfeng Chen, Liam Abbott
-* **LDSR downsampling results:** Nikolas Baya
-* **Manhattan plots:** Andrea Ganna (and check out [GWASbot](http://twitter.com/SbotGwa))
-* **Phenotype analysis support**: Caitlin Carey, Duncan Palmer
-* **Supervision**: Benjamin Neale
-* **UK Biobank GWAS Core Team:** Liam Abbott, Sam Bryant, Claire Churchhouse, Andrea Ganna, Daniel Howrigan, Duncan Palmer, Ben Neale, Raymond Walters, Caitlin Carey, The Hail team
-* **UK Biobank GWAS Contributors:** Verneri Anttila, Krishna Aragam, Alex Baumann, Joanne Cole, Mark J. Daly, Rob Damian, Mary Haas, Joel Hirschhorn, Eric Jones, Ruchi Munshi, Manuel Rivas, Sailaja Vedantam
-
-With additional thanks to Alex Bloemendal, Patrick Turley, Robert Maier, Michel Nivard, Steven Gazal, Tarjinder Singh, and many others for helpful conversations.
-
-</div>
-
-***
-
-

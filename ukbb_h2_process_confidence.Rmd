@@ -1,6 +1,7 @@
 ---
 title: "Defining Confidence Levels for UKB Round 2 LDSR Analyses"
 date: "Last updated `r format(Sys.Date())`"
+author: "Results from the [Neale Lab](credits.html)"
 output:
   html_document:
     toc: true
@@ -1208,24 +1209,3 @@ We then consider the [statistical significance](significance.html) of the $h^2_g
 <br>
 
 ***
-
-# Credits
-
-<div class="well">
-
-* **Primary analysis:** Raymond Walters (any and all mistakes above are mine)
-* **LDSR analysis support:** Nikolas Baya, Katherine Tashman, Danfeng Chen, Liam Abbott
-* **LDSR downsampling results:** Nikolas Baya
-* **Manhattan plots:** Andrea Ganna (and check out [GWASbot](http://twitter.com/SbotGwa))
-* **Phenotype analysis support**: Caitlin Carey, Duncan Palmer
-* **Supervision**: Benjamin Neale
-* **UK Biobank GWAS Core Team:** Liam Abbott, Sam Bryant, Claire Churchhouse, Andrea Ganna, Daniel Howrigan, Duncan Palmer, Ben Neale, Raymond Walters, Caitlin Carey, The Hail team
-* **UK Biobank GWAS Contributors:** Verneri Anttila, Krishna Aragam, Alex Baumann, Joanne Cole, Mark J. Daly, Rob Damian, Mary Haas, Joel Hirschhorn, Eric Jones, Ruchi Munshi, Manuel Rivas, Sailaja Vedantam
-
-With additional thanks to Alex Bloemendal, Patrick Turley, Robert Maier, Michel Nivard, Steven Gazal, Tarjinder Singh, and many others for helpful conversations.
-
-</div>
-
-***
-
-
