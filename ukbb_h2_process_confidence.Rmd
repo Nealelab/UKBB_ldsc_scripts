@@ -20,6 +20,12 @@ params:
   imagedir: "../external_images"
 ---
 
+```{r child = '_toc_fix.Rmd'}
+```
+
+```{r child = '_code_highlight_fix.Rmd'}
+```
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.align="center")
 # devtools::install_github("ropensci/plotly")

@@ -51,6 +51,12 @@ div.main-container {
 }
 </style>
 
+```{r child = '_toc_fix.Rmd'}
+```
+
+```{r child = '_code_highlight_fix.Rmd'}
+```
+
 ```{r data_load3, include=FALSE}
 dat_all <- read.delim(params$datfile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
 ```
