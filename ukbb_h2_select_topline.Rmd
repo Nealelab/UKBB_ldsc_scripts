@@ -6,7 +6,7 @@ output:
   html_document:
     toc: true
     toc_float: true
-    number_sections: true
+    number_sections: false
 params:
   h2file: "../results/round2_final/ukb31063.h2.baseline1-1.gwas_v2.full_results.02Oct2019.tsv.gz"
   cormat_bothsex: "../reference/both_sexes_resid_corrmat.csv"
@@ -88,10 +88,7 @@ datm <- dat_load[dat_load$sex == "male",]
 
 <br>
 
-
 ***
-
-<br>
 
 # Overview
 
@@ -104,9 +101,11 @@ The [UKB Round 2 GWAS](https://github.com/Nealelab/UK_Biobank_GWAS) contains `r 
 
 Our first task for the LD Score regression analyses, then, is to get a "primary" result for each phenotype.
 
+***
+
 <br>
 
-# Choosing whether to include dilution factor as a covariate for biomarker phenotypes {#dilution}
+# Biomarker dilution factor {#dilution}
 
 For the biomarker assays, UK Biobank has reported that some samples were unintentionally diluted ([pdf](http://biobank.ctsu.ox.ac.uk/crystal/crystal/docs/biomarker_issues.pdf)) during processing. Although an effort has been made to estimate the dilution fraction and correct assay values accordingly, the estimated dilution fraction has also been reported for potential use in additional modelling. For instance, [other initial analyses of the biomarker data](https://www.biorxiv.org/content/10.1101/660506v1) have opted to include the dilution fraction as a covariate in regression analyses.
 
@@ -114,7 +113,7 @@ For the Neale Lab GWAS, the analysis was performed both with and without the dil
 
 <br>
 
-## Hertiability
+## Heritability
 
 If the dilution fraction covariate controls for substantial noise in the phenotype, we may anticipate stronger $h^2_g$ results (higher point estimate, more significant) when the covariate is included. 
 
@@ -289,9 +288,9 @@ rm(biodat)
 
 <br>
 
-# Choosing IRNT vs. raw untransformed continuous phenotypes {#irnt}
+# Continuous phenotype normalization {#irnt}
 
-The Round 1 GWAS rank-normalized all continuous phenotypes. In Round 2, untransformed copies of the continuous phenotypes were also GWASed for the purposes of evaluating whether rank-normalizing was beneficial. Here we compare the raw and IRNT versions of all of the continuous phenotypes from [PHESANT](https://github.com/astheeggeggs/PHESANT) that were GWASed in `both_sexes` (i.e. that aren't sex-specific).
+The Round 1 GWAS rank-normalized (IRNT) all continuous phenotypes. In Round 2, untransformed copies of the continuous phenotypes were also GWASed for the purposes of evaluating whether rank-normalizing was beneficial. Here we compare the raw and IRNT versions of all of the continuous phenotypes from [PHESANT](https://github.com/astheeggeggs/PHESANT) that were GWASed in `both_sexes` (i.e. that aren't sex-specific).
 
 Specifically, we evaluate whether:
 
@@ -495,7 +494,7 @@ dat <- dat[dat$keep,]
 
 <br>
 
-# Removing redundant FinnGen codes {#finngen}
+# Redundant FinnGen codes {#finngen}
 
 During review of the GWAS phenotypes, we identified some instances where a [FinnGen](https://www.finngen.fi/en) code corresponds to a phenotype that is identical to another GWASed FinnGen code and in thus redundant. The most common case is pairs with codes `C_*` and `C3_*` with the same name, description,and sample size. For example, both `C_OTHER_SKIN` and `C3_OTHER_SKIN` are phenotypes for "Other malignant neoplasms of skin", and both have 14,402 cases and 346,792 controls. We identify and mark as redundant those phenotypes here.
 

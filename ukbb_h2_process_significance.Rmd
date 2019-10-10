@@ -6,7 +6,7 @@ output:
   html_document:
     toc: true
     toc_float: true
-    number_sections: true
+    number_sections: false
 params:
   datfile: "../results/round2_raw/h2_topline_conf_temp.tsv.gz"
   cormat_bothsex: "../reference/both_sexes_resid_corrmat.csv"
@@ -61,11 +61,22 @@ div.main-container {
 dat_all <- read.delim(params$datfile,sep = '\t', quote = "", header=T, stringsAsFactors = F)
 ```
 
+```{r plotly_dummy, echo=F, warnings=F, message=F,include=F}
+# to catch initial plotly package messages
+plot_ly(x=rnorm(2),y=rnorm(2),type="scatter",mode="markers")
+```
+
 <br>
 
 ***
 
-Having established a [list of phenotypes where we have reasonable confidence](confidence.html) in the LDSR results, we can now address the question of which phenotypes are significantly heritable.
+# Introduction
+
+Having established a [list of phenotypes where we have reasonable confidence](confidence.html) in the LDSR results, we can now address the question of which phenotypes are significantly heritable. The primary question is how to account for multiple testing across the GWASed phenotypes.
+
+***
+
+<br>
 
 # Distribution of $h^2_g$ results
 
@@ -309,13 +320,13 @@ This computation of $M_{eff}$ suggests:
 * `r round(meff,2)` tests among medium and high confidence phenotypes combined
 * `r round(meff_low,2)` tests among low, medium, and high confidence phenotypes combined
 
-We skip computation of $M_{eff}$ including phenotypes with no confidence since we generally don't recommend use of those results.
+We skip computation of $M_{eff}$ including phenotypes with no confidence since we generally don't recommend use of those results. 
 
 </div>
 
-<br>
+<br> 
 
-# **Conclusion:** significance thresholds {#sig_thresh}
+## Potential thresholds
 
 <div class="well">
 
@@ -335,7 +346,7 @@ The above process leaves us with a large number of possible p-value thresholds:
 We observe that the differences between most of these options based on (effective) number of tests is fairly marginal. Splitting the phenotypes by confidence level, we see the number of phenotypes surpassing each p-value threshold is quite similar.
 
 | Threshold | Low Conf. | Medium Conf. | High Conf. |
-|-|-|-|------|
+|---------|----------|-----------|--------------------------------------------|
 | $p<`r signif(.05/meff_high,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/meff_high)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/meff_high)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/meff_high)` |
 | $p<`r signif(.05/ntest_high,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/ntest_high)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/ntest_high)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/ntest_high)` |
 | $p<`r signif(.05/meff,3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/meff)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/meff)` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/meff)` |
@@ -345,10 +356,19 @@ We observe that the differences between most of these options based on (effectiv
 | $p<`r signif(.05/sum(!dat_all$isNotPrimary),3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < .05/sum(!dat_all$isNotPrimary))` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < .05/sum(!dat_all$isNotPrimary))` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < .05/sum(!dat_all$isNotPrimary))` |
 | $p < `r signif(pnorm(4,lower=F),3)`$ | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="low"] < pnorm(4,lower=F))` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="medium"] < pnorm(4,lower=F))` | `r sum(dat_all$h2_p[!dat_all$isNotPrimary & dat_all$confidence=="high"] < pnorm(4,lower=F))` |
 
-For simplicity, we choose to focus on reporting the following levels:
+
+</div>
+
+<br>
+
+# Chosen significance thresholds {#sig_thresh}
+
+<div class="well">
+
+We choose to focus on reporting the following levels:
 
 | Level | Criteria | Description |
-|-|--|-----|
+|----------|--------------------------|----------------------------------------------------|
 | NA | low confidence | not evaluated due to risk of biases/instability |
 | NonSig | $p > .05$ | insufficient evidence for $h^2_g > 0$ |
 | Nominal | $p < .05$ | if you only looked at one phenotype... |
@@ -359,7 +379,9 @@ We anticipate that these should cover most of the range of interests in using an
 
 </div>
 
-# Summary of Significant Results
+<br>
+
+# Summary of significant results
 
 <div class="well">
 
@@ -387,7 +409,7 @@ dat_all$h2_sig <- factor(dat_all$h2_sig, levels=c("nonsig","nominal","z4","z7"))
 ```
 
 | Confidence | NonSig | Nominal | z4 | z7 | NA |
-|--|-|-|-|-|-|
+|-----------------|--------|--------|--------|--------|--------|
 | low | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]=="nonsig",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]=="nominal",na.rm=T)` | `r  sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]=="z4",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]=="z7",na.rm=T)` | `r sum(is.na(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low"]),na.rm=T)` |
 | medium | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]=="nonsig",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]=="nominal",na.rm=T)` | `r  sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]=="z4",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]=="z7",na.rm=T)` | `r sum(is.na(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"]),na.rm=T)` |
 | high | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="nonsig",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="nominal",na.rm=T)` | `r  sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="z4",na.rm=T)` | `r sum(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]=="z7",na.rm=T)` | `r sum(is.na(dat_all$h2_sig[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"]),na.rm=T)` |
@@ -436,8 +458,6 @@ if(params$writeout){
 }
 
 ```
-
-***
 
 
 

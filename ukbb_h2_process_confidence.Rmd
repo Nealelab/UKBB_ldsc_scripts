@@ -6,7 +6,7 @@ output:
   html_document:
     toc: true
     toc_float: true
-    number_sections: true
+    number_sections: false
 params:
   datfile: "../results/round2_raw/h2_topline_temp.tsv.gz"
   fulldatfile: "../results/round2_raw/bothsexes_h2_topline_temp.tsv.gz"
@@ -69,6 +69,10 @@ onesex_ns <- read.delim(params$onesexnfile,sep = '\t', quote = "", header=T, str
 
 ```
 
+```{r plotly_dummy, echo=F, warnings=F, message=F,include=F}
+# to catch initial plotly package messages
+plot_ly(x=rnorm(2),y=rnorm(2),type="scatter",mode="markers")
+```
 
 <br>
 
@@ -87,12 +91,11 @@ We document here out evaluation of confidence in each of the LDSR $h^2_g$ result
 
 We conclude with a summary of our [current confidence classifications](#summary).
 
-[Credits](#credits)
-
-
 ***
 
-# Minimum sample size requirements {#min-n}
+<br>
+
+# Minimum sample size {#min-n}
 
 After [we've defined a "primary" $h^2_g$ result](select_topline.html) for each of the `r length(unique(dat$phen_stem))` unique phenotypes in the Round 2 GWAS, we know that the sample size (or effective sample size) for many of these phenotypes is quite low. For example, case counts are quite small for most ICD codes and job codes. To avoid unnecessary multiple testing for the significance of the $h^2_g$ results we therefore aim to identify the minimum (effective) sample size required to provide sufficient power to make LDSR analysis viable. [*NB:* We focus first on a bare minimum in terms of power, we'll return to the question of bias later.]
 
@@ -354,7 +357,7 @@ From the observed $h^2_g$ distribution, is appears the phenotypes with larger es
 <br>
 
 
-## **Conclusion**
+## Conclusion
 
 ```{r required_neff, echo=F}
 
@@ -413,7 +416,7 @@ dat <- dat[!dat$isBadPower,]
 
 ***
 
-# Potential biases at low effective N {#neff-bias}
+# Potential small sample biases {#neff-bias}
 
 The above set of conditions identifies `r nrow(dat)` phenotypes that avoid redundancy for encoding and sex-specific results and reach a minimum effective sample size ($N_{eff}$) necessary for LDSR analysis to be viable in terms of power. These thresholds may be considered a bare minimum. We now consider instances among these `r nrow(dat)` phenotypes where we may still be pessimistic about the accuracy of the LDSR results. 
 
@@ -656,7 +659,7 @@ The relationship to $a$ may also explain why the attenuation at low $N_{eff}$ is
 
 </div>
 
-## **Conclusion** 
+## Conclusion
 
 From the plot of $h^2_g$ by $a$ decile, it appears LDSR $h^2_g$ estimates converge to stabilty in the $N_{eff}=20,000-40,000$ range. This is broadly consistent with the downsampling experiments above, though in some instances those show evidence of slightly slower convergence. Based on the above, we therefore denote our confidence in the LDSR $h^2_g$ results as follows:
 
@@ -708,6 +711,7 @@ dat <- dat[dat$confidence != "low", ]
 
 <br>
 
+***
 
 # Unusually large standard errors {#large-se}
 
@@ -799,7 +803,7 @@ Although the unexpectedly large SEs for phenotypes like thrombocyte volume are s
 
 </div>
 
-## **Conclusion** 
+## Conclusion
 
 We mark reduced confidence in phenotypes with unexpectedly large SEs as follows:
 
@@ -847,6 +851,9 @@ datf_full$confidence[datf_full$isHighSE & datf_full$confidence=="high"] <- "medi
 dat <- dat[dat$confidence != "low", ]
 ```
 
+<br>
+
+***
 
 # Sex-biased phenotypes {#sex-bias}
 
@@ -969,7 +976,7 @@ rm(sex_ns2)
 
 </div>
 
-## **Conclusion** 
+## Conclusion
 
 We denote as "medium" confidence `r sum(idx_sexconf & !dat$isMidNeff)` phenotypes where >75% of cases are from a single sex. 
 
@@ -977,7 +984,7 @@ We denote as "medium" confidence `r sum(idx_sexconf & !dat$isMidNeff)` phenotype
 
 ```{r sexbias_list, echo=F, comment=NA}
 
-datatable(dat[dat$isSexBias & !dat$isMidNeff,c("phenotype","description")], 
+dt <- datatable(dat[dat$isSexBias & !dat$isMidNeff,c("phenotype","description")], 
 		  rownames = F, 
 		  colnames = c("Code","Phenotype"), 
 #		  extensions='FixedHeader', 
@@ -987,6 +994,8 @@ datatable(dat[dat$isSexBias & !dat$isMidNeff,c("phenotype","description")],
 		  escape=F,
 		  options = list(autowidth=F, scrollY="400px", scrollX='400px', pageLength=50, dom='t')#, fixedColumns=TRUE), 
 )
+
+dt
 ```
 
 <br>
@@ -999,7 +1008,9 @@ We only flag these phenotypes as "medium" confidence (as opposed to "low") since
 
 <br>
 
-# Phenotypes with ordinal coding issues {#ordinal}
+***
+
+# Ordinal coding issues {#ordinal}
 
 In reviewing the phenotypes for this GWAS release, it was noted that the automated phenotype processing with [PHESANT](https://github.com/astheeggeggs/PHESANT) used for the GWAS yielded a small number of phenotypes with poor/uninterpretable encodings of UKB participant answers. Specifically, the issue is variables identified as ordinal by PHESANT where the labels for the ordinal levels are non-sequential numeric values and/or do not reflect that natural numeric ordering/spacing of the available response categories. For most of the identified cases this would be fine if the ordinal phenotypes were being analyzed with e.g. ordinal logistic regression as originally intended by [PHESANT](https://github.com/MRCIEU/PHESANT), but since the Neale Lab GWAS uses linear regression for all phenotypes the ordinal coding does impact the current GWAS results.
 
@@ -1009,6 +1020,8 @@ We focus here on two categories of phenotypes:
 
 * Ordinal phenotypes whose integer coding does not reflect the scaling of quasi-numeric response categories
 
+<br>
+
 ## Non-sequential ordinal coding
 
 <div class="well">
@@ -1016,7 +1029,7 @@ We focus here on two categories of phenotypes:
 A review of the PHESANT output for the phenotypes in the Neale lab GWAS finds 7 phenotypes with non-sequential codes. In other words, there are phenotypes that are marked as ordinal variables but don't end up with values of `[1,2,...,k]` or `[0,1,...,(k-1)]` (where $k$ is the number of response categories) in the post-PHESANT phenotypes for GWAS. The 7 identified phenotypes are: 
 
 | Pheno. | Description | Ordinal Levels |
-|-|--|--|
+|------|------------------------|-------------------------|
 | [4270](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4270) | Volume level set by participant (left) | `[10, 20, 40, 70, 100]` |
 | [4277](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4277) | Volume level set by participant (right) | `[10, 20, 40, 70, 100]` |
 | [4814](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4814) | Tinnitus severity/nuisance | `[4, 11, 12, 13]` |
@@ -1027,23 +1040,25 @@ A review of the PHESANT output for the phenotypes in the Neale lab GWAS finds 7 
 
 We review each of these in turn.
 
-* 4270 and 4277 report the volume percentage selected by the participant. Although this is marked as ordinal, the response coding reflects the numerical level of the percentages. This is not problematic.
+* [4270](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4270) and [4277](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4277) report the volume percentage selected by the participant. Although this is marked as ordinal, the response coding reflects the numerical level of the percentages. This is not problematic.
 
-* 4814 codes reported tinnitis severity. It appears PHESANT missed recoding this variable, instead keeping the original UKB encoding of `4: Not at all`, `11: Severely`, `12: Moderately`, and `13: Slightly`. Is it evident that both the ordering and scaling of the codes is problematic.
+* [4814](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=4814) codes reported tinnitis severity. It appears PHESANT missed recoding this variable, instead keeping the original UKB encoding of `4: Not at all`, `11: Severely`, `12: Moderately`, and `13: Slightly`. Is it evident that both the ordering and scaling of the codes is problematic.
 
-* 100010 reflects the raw UKB encoding for portion size of `5: smaller`, `10: average`, or `15: larger` than normal portion sizes. Although a `[1,2,3]` encoding might be more conventional here, no harm is done by this alternate coding.
+* [100010](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=100010) reflects the raw UKB encoding for portion size of `5: smaller`, `10: average`, or `15: larger` than normal portion sizes. Although a `[1,2,3]` encoding might be more conventional here, no harm is done by this alternate coding.
 
-* 100400 codes the number of cups of tea consumed, with a code of `600` reflecting a reponse of `6+`. Obviously this coding gives dramatically outsized weight to the `6+` response in an unintended way, giving numeric weight to a placeholder value used by UKB to distinguish the `6+` response from a simple `6`. Using this value for GWAS is problematic.
+* [100400](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=100400) codes the number of cups of tea consumed, with a code of `600` reflecting a reponse of `6+`. Obviously this coding gives dramatically outsized weight to the `6+` response in an unintended way, giving numeric weight to a placeholder value used by UKB to distinguish the `6+` response from a simple `6`. Using this value for GWAS is problematic.
 
-* 102290 codes chocolate intake, and correctly recodes/reorders from the placeholder values reported by UKB for the number of chocolate bars consumed: `444: quarter` becomes 1, `555: half` becomes 2, `1: 1` becomes 3, `2: 2` becomes 4, `3: 3` becomes 5, `4: 4`: becomes 6, and `500: 5+` becomes 7, with a default value of 0 added for people who took the corresponding diet questionanaire but didn't report any chocolate intake. The non-sequential values occur because the the response categories for `3` and `5+` are dropped for having too few respondants. Dropping these levels may make sense for an ordinal regression, but is suboptimal for our linear regression. Giving the `quarter` and `half` response levels integer coding may also distort the phenotypic scaling in a linear regression. Thus in sum, the non-sequential codes are understandable but the encoding may still have issues; we return to this potentially error mode in the next section. 
+* [102290](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=102290) codes chocolate intake, and correctly recodes/reorders from the placeholder values reported by UKB for the number of chocolate bars consumed: `444: quarter` becomes 1, `555: half` becomes 2, `1: 1` becomes 3, `2: 2` becomes 4, `3: 3` becomes 5, `4: 4`: becomes 6, and `500: 5+` becomes 7, with a default value of 0 added for people who took the corresponding diet questionanaire but didn't report any chocolate intake. The non-sequential values occur because the the response categories for `3` and `5+` are dropped for having too few respondants. Dropping these levels may make sense for an ordinal regression, but is suboptimal for our linear regression. Giving the `quarter` and `half` response levels integer coding may also distort the phenotypic scaling in a linear regression. Thus in sum, the non-sequential codes are understandable but the encoding may still have issues; we return to this potentially error mode in the next section. 
 
-* 104920 also appears to have missed recoding of the ordinal levels by PHESANT. The reported values conflate a range of hours spent on the activity (`0: None`, `1: Under 1 hour`, `13: 1-3 hours`, `35: 3-5 hours`, `57: 5-7 hours`, `79: 7-9 hours`, `912: 9-12 hours`, and `1200: 12+ hours`). Like the tea intake item, these are clearly placeholders and not well-suited to GWAS. The clearly nonlinear relationship between these codes and the underlying number of hours being reported is likely problematic.
+* [104920](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=104920) also appears to have missed recoding of the ordinal levels by PHESANT. The reported values conflate a range of hours spent on the activity (`0: None`, `1: Under 1 hour`, `13: 1-3 hours`, `35: 3-5 hours`, `57: 5-7 hours`, `79: 7-9 hours`, `912: 9-12 hours`, and `1200: 12+ hours`). Like the tea intake item, these are clearly placeholders and not well-suited to GWAS. The clearly nonlinear relationship between these codes and the underlying number of hours being reported is likely problematic.
 
 *Takeaway:* Phenotypes 4814, 100400, and 104920 are clearly problematic, phenotypes 4270, 4277, and 100010 are fine with their current codings, and phenotype 104920 is concerning but not severely broken. The next section considers additional phenotypes like 104920 with potentially nonlinear encodings.
 
 </div>
 
 <br>
+
+***
 
 ## Quasi-numeric ordinal phenotypes
 
@@ -1056,7 +1071,7 @@ We therefore review the codings for all `r length(unique(dat$phenotype[dat$varia
 **Ever taken cannabis**
 
 | coding | meaning |
-|-|-|
+|------|-----------------------|
 | 0 | No |
 | 1 | Yes, 1-2 times |
 | 2 | Yes, 3-10 times |
@@ -1066,7 +1081,7 @@ We therefore review the codings for all `r length(unique(dat$phenotype[dat$varia
 **Dark chocolate intake**
 
 | coding | meaning |
-|-|-|
+|------|--------------------------------------------------------------------|
 | 1 | quarter |
 | 2 | half |
 | 3 | 1 |
@@ -1078,7 +1093,7 @@ We therefore review the codings for all `r length(unique(dat$phenotype[dat$varia
 **Duration of worst depression**
 
 | coding | meaning |
-|-|-|
+|------|-----------------------|
 | 1 | Less than a month |
 | 2 | Between one and three months |
 | 3 | Over three months, but less than six months |
@@ -1111,7 +1126,7 @@ Note the chosen list of codings is intentionally broad, and thus this reduction 
 
 <br>
 
-## **Conclusion**
+## Conclusion
 
 ```{r ord_code_probs, echo=F}
 
@@ -1162,7 +1177,9 @@ A set of `r length(num_ord)` ordinal phenotypes whose coded response levels may 
 
 <br>
 
-# Summary of phenotype confidence {#summary}
+***
+
+# Summary of confidence ratings {#summary}
 
 In sum, the above process leaves us with:
 
@@ -1192,7 +1209,7 @@ dat_all$int_p_text[dat_all$intercept_p==0] <- as.character(format(mpfr(0.5,64)*e
 ```
 
 | Confidence | Count | Description |
-|-|-|-----|
+|---------|-------|---------------------------------------------------------|
 | NA | `r sum(dat_all$confidence=="NA_(not_primary)")` | not the primary analysis (sex-specific subset, un-normalized, redundant) |
 | None | `r sum(dat_all$confidence=="none")` | $N_{eff} < 4500$ |
 | Low | `r sum(dat_all$confidence=="low")` | $N_{eff} < 20000$, or $SE > 12\times$ expected with low intercept, or bad ordinal coding |
@@ -1212,6 +1229,3 @@ We then consider the [statistical significance](significance.html) of the $h^2_g
 
 </div>
 
-<br>
-
-***
