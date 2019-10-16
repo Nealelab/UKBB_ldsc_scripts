@@ -91,7 +91,7 @@ dat_all$conf_simple[startsWith(dat_all$confidence, "none")] <- "none"
 dat_all$conf_simple[startsWith(dat_all$confidence, "low")] <- "low"
 dat_all$conf_simple[startsWith(dat_all$confidence, "med")] <- "medium"
 dat_all$conf_simple[startsWith(dat_all$confidence, "high")] <- "high"
-dat_all$conf_simple <- factor(dat_all$conf_simple, levels=c("none","low","medium","high"))
+dat_all$conf_simple <- factor(dat_all$conf_simple, levels=c("high","medium","low","none"))
 
 
 dat_all$isBinary <- !is.na(dat_all$n_cases)
@@ -104,10 +104,10 @@ qref_lo <- ppoints(sum(!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low")
 qref_med <- ppoints(sum(!is.na(dat_all$conf_simple) & dat_all$conf_simple=="medium"))
 qref_hi <- ppoints(sum(!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high"))
 
-pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low",],
+pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high",],
         y=~-log10(h2_p),
-        x=~-log10(qref_lo)[rank(h2_p)],
-        name="low",
+        x=~-log10(qref_hi)[rank(h2_p)],
+        name="high",
         type="scatter",
         mode="markers",
         hoverinfo="text",
@@ -131,10 +131,10 @@ pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low",]
             "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
             "<br>Effective N: ", Neff)
         ) %>% add_markers(
-          data=dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high",],
+          data=dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low",],
           y=~-log10(h2_p),
-          x=~-log10(qref_hi)[rank(h2_p)],
-          name="high",
+          x=~-log10(qref_lo)[rank(h2_p)],
+          name="low",
           type="scatter",
           mode="markers",
           hoverinfo="text",
