@@ -515,7 +515,7 @@ knitr::include_graphics(paste0(params$imagedir,"/downsample_height.png"))
 knitr::include_graphics(paste0(params$imagedir,"/downsample_leg.png"))
 ```
 
-*Note:* Above are two specific examples among a broader set of ongoing analyses. 
+*Note:* Above are two specific examples among a broader set of ongoing analyses. Plots by Nikolas Baya.
 
 *Takeaway:* There are signs of attenutation of the LDSR $h^2_g$ estimate at low $N$ in height, but leg impedence shows no such attentuation, and instead may have an upward bias. In both cases, estimates are clearly unstable at low $N$.
 
