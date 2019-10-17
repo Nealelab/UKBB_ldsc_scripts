@@ -114,7 +114,7 @@ pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high",
         text = ~paste0(
           "Phenotype: ", description,
           "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
           "<br>Effective N: ", Neff),
         width=400, height=400
         ) %>% add_markers(
@@ -128,7 +128,7 @@ pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high",
           text = ~paste0(
             "Phenotype: ", description,
             "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-            "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+            "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
             "<br>Effective N: ", Neff)
         ) %>% add_markers(
           data=dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="low",],
@@ -141,7 +141,7 @@ pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high",
           text = ~paste0(
             "Phenotype: ", description,
             "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-            "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+            "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
             "<br>Effective N: ", Neff)
         ) %>% add_trace(
           x=-log10(qref_lo),
@@ -153,7 +153,7 @@ pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple=="high",
           text=""
         ) %>% layout(
           xaxis = list(title="Expected -log10(p)"),
-          yaxis = list(title="-log10(p) for SNP-h^2"),
+          yaxis = list(title="-log10(p) for SNP h2"),
           margin=list(b=65)
         )
 htmltools::div( pp, align="center" )
@@ -177,7 +177,7 @@ pp <- plot_ly(dat_all[!is.na(dat_all$conf_simple) & dat_all$conf_simple!="none",
         text=~description
 ) %>% layout(
   xaxis = list(title="confidence"),
-  yaxis = list(title="SNP-h^2 (liability)", range=c(-.2,.7)),
+  yaxis = list(title="SNP h2 (liability)", range=c(-.2,.7)),
   margin=list(b=65)
 )
 htmltools::div( pp, align="center" )

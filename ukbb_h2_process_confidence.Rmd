@@ -131,10 +131,10 @@ pp <- plot_ly(dat,
         text = ~paste0(
           "Phenotype: ", description,
           "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
           "<br>Effective N: ", Neff)) %>%
   layout(xaxis=list(title="Neff"),
-         yaxis=list(title="SE of SNP-h^2 estimate (liability)"),
+         yaxis=list(title="SE of SNP h2 estimate (liability)"),
          margin=list(b=65))
 htmltools::div( pp, align="center" )
 ```
@@ -160,10 +160,10 @@ pp <- plot_ly(dat,
         text = ~paste0(
           "Phenotype: ", description,
           "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
           "<br>Effective N: ", Neff)) %>%
   layout(xaxis=list(title="Neff"),
-         yaxis=list(title="1/SE^2 for SNP-h^2 estimate (liability)"),
+         yaxis=list(title="1/SE^2 for SNP h2 estimate (liability)"),
          margin=list(b=65))
 htmltools::div( pp, align="center" )
 ```
@@ -194,7 +194,7 @@ pp <- plot_ly(dat,
         text = ~paste0(
           "Phenotype: ", description,
           "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
           "<br>Effective N: ", Neff)) %>%
   add_trace(x=~Neff[order(Neff)],
             y=~mod1$fitted.values[order(Neff)],
@@ -209,7 +209,7 @@ pp <- plot_ly(dat,
             hoverinfo="text",
             text="") %>%
   layout(xaxis=list(title="Neff"),
-         yaxis=list(title="1/SE^2 for SNP h^2 estimate (liability)"),
+         yaxis=list(title="1/SE^2 for SNP h2 estimate (liability)"),
          margin=list(b=65))
 htmltools::div( pp, align="center" )
 ```
@@ -232,7 +232,7 @@ pp <- plot_ly(dat,
         text = ~paste0(
           "Phenotype: ", description,
           "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
           "<br>Effective N: ", Neff)) %>%
   add_trace(x=~Neff[order(Neff)],
             y=~1/sqrt(mod1$fitted.values[order(Neff)]),
@@ -247,7 +247,7 @@ pp <- plot_ly(dat,
             hoverinfo="text",
             text="") %>%
   layout(xaxis=list(title="Neff",range=c(0,5000)),
-         yaxis=list(title="SE for SNP-h^2 estimate (liability)", range=c(0,0.35)),
+         yaxis=list(title="SE for SNP h2 estimate (liability)", range=c(0,0.35)),
          margin=list(b=65))
 htmltools::div( pp, align="center" )
 
@@ -269,7 +269,7 @@ We adopt the loess model (green) for predicting SEs from sample size for the res
 
 Given the above model for expected SEs as a function of sample size, and assuming the SEs are well calibrated, we can then turn these modelled SEs into a power analysis. 
 
-Specifically, we ask for a given true SNP-heritability, sample size and p-value threshold what the probability is of the estimated $h^2_g$ divided by its SE exceeding to corresponding critical value for the Z statistic, assuming the sampling variation of the estimated estimated $h^2_g$ and it's estimated SE both match the expected SE based on sample size given by the above model. We focus on here power at $p < .05$ without any multiple testing correction in the interest of providing results relevant to hypotheses that include look-ups of $h^2_g$ for a single phenotype (as opposed to scans across all available UKB phenotypes). We'll return to the question of which results we'd consider significant in the context of looking at all `r length(unique(dat$phen_stem))` phenotypes later.
+Specifically, we ask for a given true SNP heritability, sample size and p-value threshold what the probability is of the estimated $h^2_g$ divided by its SE exceeding to corresponding critical value for the Z statistic, assuming the sampling variation of the estimated estimated $h^2_g$ and it's estimated SE both match the expected SE based on sample size given by the above model. We focus on here power at $p < .05$ without any multiple testing correction in the interest of providing results relevant to hypotheses that include look-ups of $h^2_g$ for a single phenotype (as opposed to scans across all available UKB phenotypes). We'll return to the question of which results we'd consider significant in the context of looking at all `r length(unique(dat$phen_stem))` phenotypes later.
 
 ```{r neff_power_curve_reg, echo=F}
 
@@ -290,7 +290,7 @@ pp1 <- plot_ly(pow_pred_points,
                y=~pnorm(qnorm(.05,lower=F), mean = .3/pred_h2liab_se, sd=1, lower.tail = F),
                type="scatter",
                mode="lines",
-               name="SNP-h^2 = 0.3",
+               name="SNP h2 = 0.3",
                showlegend=T,
                hoverinfo="none",
                height=400, width=400
@@ -298,17 +298,17 @@ pp1 <- plot_ly(pow_pred_points,
               x=~Neff,
               y=~pnorm(qnorm(.05,lower=F), mean = .2/pred_h2liab_se, sd=1, lower.tail = F),
               mode="lines",
-              name="SNP-h^2 = 0.2"
+              name="SNP h2 = 0.2"
       ) %>% add_trace(
               x=~Neff,
               y=~pnorm(qnorm(.05,lower=F), mean = .1/pred_h2liab_se, sd=1, lower.tail = F),
               mode="lines",
-              name="SNP-h^2 = 0.1"
+              name="SNP h2 = 0.1"
       ) %>% add_trace(
               x=~Neff,
               y=~pnorm(qnorm(.05,lower=F), mean = .05/pred_h2liab_se, sd=1, lower.tail = F),
               mode="lines",
-              name="SNP-h^2 = 0.05"              
+              name="SNP h2 = 0.05"              
       ) %>% layout(
         xaxis = list(title = "Effective N", range=c(0,30000)),
         yaxis = list(title= "Estimated Power", range=c(0,1),
@@ -342,7 +342,7 @@ pp <- plot_ly(dat[dat$Neff > 300000,],
         hoverinfo="none",
         width=400, height=400
         ) %>% layout(
-  xaxis = list(title="SNP-h^2 (liability)", range=c(-0.1,0.6),
+  xaxis = list(title="SNP h2 (liability)", range=c(-0.1,0.6),
   margin=list(b=65))
 )
 htmltools::div( pp, align="center" )
@@ -350,7 +350,7 @@ htmltools::div( pp, align="center" )
 
 <br>
 
-From the observed $h^2_g$ distribution, is appears the phenotypes with larger estimated SNP-heritability tend to have estimates around $h^2_g=0.2$ or slightly larger. We can then orient our decisions on sample size around having power to detect $h^2_g \geq 0.2$.
+From the observed $h^2_g$ distribution, is appears the phenotypes with larger estimated SNP heritability tend to have estimates around $h^2_g=0.2$ or slightly larger. We can then orient our decisions on sample size around having power to detect $h^2_g \geq 0.2$.
 
 </div>
 
@@ -438,7 +438,7 @@ pp <- plot_ly(dat,
               text = ~paste0(
                 "Phenotype: ", description,
                 "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-                "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+                "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
                 "<br>Effective N: ", Neff)) %>%
   add_trace(x=ll$x[order(ll$x)],
             y=ll$fitted[order(ll$x)],
@@ -446,7 +446,7 @@ pp <- plot_ly(dat,
             mode="lines",
             hoverinfo="text",
             text="") %>%
-  layout(yaxis=list(title="SNP-h^2 (liability)", range=c(-.25,.5)),
+  layout(yaxis=list(title="SNP h2 (liability)", range=c(-.25,.5)),
          margin=list(b=65))
 htmltools::div( pp, align="center" )
 ```
@@ -478,7 +478,7 @@ pp <- plot_ly(dat[dat$n > 300000, ],
               text = ~paste0(
                 "Phenotype: ", description,
                 "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-                "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+                "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
                 "<br>Effective N: ", Neff)) %>%
   add_trace(x=ll$x[order(ll$x)],
             y=ll$fitted[order(ll$x)],
@@ -486,7 +486,7 @@ pp <- plot_ly(dat[dat$n > 300000, ],
             mode="lines",
             hoverinfo="text",
             text="") %>%
-  layout(yaxis=list(title="SNP-h^2 (liability)", range=c(-.1,.5)),
+  layout(yaxis=list(title="SNP h2 (liability)", range=c(-.1,.5)),
          margin=list(b=65))
 htmltools::div( pp, align="center" )
 ```
@@ -549,11 +549,11 @@ pp <- plot_ly(dat,
               text = ~paste0(
                 "Phenotype: ", description,
                 "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-                "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+                "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
                 "<br>Effective N: ", Neff)) %>%
   layout(
     xaxis = list(title="Neff", range=c(0,200000)),
-    yaxis = list(title="SNP-h^2", range=c(-.5,.5)),
+    yaxis = list(title="SNP h2 (liability)", range=c(-.5,.5)),
     title = "alpha deciles",
     margin=list(b=65)
   )
@@ -623,7 +623,7 @@ pp <- plot_ly(dat,
         text = ~paste0(
           "Phenotype: ", description,
           "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
           "<br>Effective N: ", Neff))
   
 
@@ -642,7 +642,7 @@ for(i in 6:10){
 }
 
 pp <- pp %>% layout(xaxis=list(title="Neff", range=c(100000,max(dat$Neff))),
-         yaxis=list(title="SE for SNP-h^2 estimate (liability)", range=c(0,.025)),
+         yaxis=list(title="SE for SNP h2 estimate (liability)", range=c(0,.025)),
          margin=list(b=65)
          )
 
@@ -734,10 +734,10 @@ pp <- plot_ly(dat,
         text = ~paste0(
           "Phenotype: ", description,
           "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
           "<br>Effective N: ", Neff)) %>%
   layout(xaxis=list(title="Neff"),
-         yaxis=list(title="SE of SNP-h^2 estimate (liability)"),
+         yaxis=list(title="SE of SNP h2 estimate (liability)"),
          margin=list(b=65))
 htmltools::div( pp, align="center" )
 ```
@@ -777,9 +777,9 @@ pp <- plot_ly(dat,
         text = ~paste0(
           "Phenotype: ", description,
           "<br>Intercept: ", round(intercept,5), " (p=",int_p_text,")",
-          "<br>Liability SNP-h^2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
+          "<br>Liability SNP h2: ", round(h2_liability,4), " (p=",signif(h2_p, 3),")",
           "<br>Effective N: ", Neff)) %>%
-  layout(yaxis=list(title="Observed/Predicted ratio for SNP-h^2 SE"),
+  layout(yaxis=list(title="Observed/Predicted ratio for SNP h2 SE"),
          xaxis=list(title="LDSR intercept"),
          margin=list(b=65))
 htmltools::div( pp, align="center" )

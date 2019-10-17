@@ -162,7 +162,7 @@ pp1 <- plot_ly(biodat,
         ) %>% layout(
           xaxis = list(title="without dilution covariate"),
           yaxis = list(title="with dilution covariate"),
-          title = "SNP-h^2 estimate",
+          title = "SNP h2 estimate (liability)",
           margin=list(b=65)
         )
 qref2 <- seq(min(0,min(-log10(biodat$h2_p.x),na.rm=T)),max(-log10(biodat$h2_p.x),na.rm=T),.01)
@@ -185,7 +185,7 @@ pp2 <- plot_ly(biodat,
         ) %>% layout(
           xaxis = list(title="without dilution covariate"),
           yaxis = list(title="with dilution covariate"),
-          title = "-log10 SNP-h^2 p-value",
+          title = "-log10 SNP h2 p-value",
           margin=list(b=65)
         )
 htmltools::div(
@@ -267,7 +267,7 @@ htmltools::div(
 </div>
 
 
-## **Conclusion**
+## Conclusion
 
 Overall, the inclusion of the dilution factor covariate has minimal impact on the results for the biomarkers. Therefore in the interest of simplicity we treat the GWAS without the dilution factor covariate as the primary analysis for the biomarker phenotypes. (Results for the GWAS with the dilution factor covariate still appear in the complete results file though.) The only remaining variation in covariates across the analyses is that sex is omitted as a covariate in sex-specific GWAS.
 
@@ -347,8 +347,8 @@ pp <- plot_ly(cont_merge,
           hoverinfo="text",
           text=""
         ) %>% layout(
-          xaxis = list(title="IRNT SNP-h^2"),
-          yaxis = list(title="raw SNP-h^2"),
+          xaxis = list(title="IRNT SNP h2"),
+          yaxis = list(title="raw SNP h2"),
           margin=list(b=65)
         )
 htmltools::div( pp, align="center")
@@ -379,8 +379,8 @@ pp <- plot_ly(cont_merge,
   hoverinfo="text",
   text=""
 ) %>% layout(
-  xaxis = list(title="-log10(IRNT SNP-h^2 p)"),
-  yaxis = list(title="-log10(raw SNP-h^2 p)"),
+  xaxis = list(title="-log10(IRNT SNP h2 p)"),
+  yaxis = list(title="-log10(raw SNP h2 p)"),
   margin=list(b=65)
 )
 htmltools::div( pp, align="center")
@@ -473,11 +473,11 @@ rm(cont_merge)
 
 *Takeaway:* Focusing here on the majority of phenotypes with moderate/nominally significant intercept results (zoom out for p-values out to 1e-450), the p-values are strongly consistent between the IRNT and raw untransformed phenotypes. IRNT intercepts are maybe marginally more significant on average.
 
-One noteworthy outlier is the estimated dilution fraction for the biomarker data (code 30897), which has a much higher intercept in the IRNT version of the GWAS (mean $\chi^2 = `r signif(dat_load$mean_chi2[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],4)`$, intercept $= `r signif(dat_load$intercept[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],4)`$, SE $= `r signif(dat_load$intercept_se[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],2)`$, $p = `r signif(dat_load$intercept_p[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$) than in the GWAS of the raw value (mean $\chi^2 = `r signif(dat_load$mean_chi2[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],4)`$, intercept $= `r signif(dat_load$intercept[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],4)`$, SE $= `r signif(dat_load$intercept_se[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],2)`$, $p = `r signif(dat_load$intercept_p[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$). The reason for this strong difference is unclear, though it may relate to the [bimodal, left-skewed distribution of the dilution fraction estimate](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=30897). The SNP-heritability result is reassuringly null in either case (IRNT: $h^2_g = `r signif(dat_load$h2_liability[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$, $p = `r signif(dat_load$h2_p[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$; raw: $h^2_g = `r signif(dat_load$h2_liability[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$, $p = `r signif(dat_load$h2_p[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$), as would be expected for GWAS of an estimate of sample contamination in the lab. As a result we give limited weight to this outlier in evaluating the choice of IRNT vs. raw versions of the GWAS.
+One noteworthy outlier is the estimated dilution fraction for the biomarker data (code 30897), which has a much higher intercept in the IRNT version of the GWAS (mean $\chi^2 = `r signif(dat_load$mean_chi2[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],4)`$, intercept $= `r signif(dat_load$intercept[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],4)`$, SE $= `r signif(dat_load$intercept_se[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],2)`$, $p = `r signif(dat_load$intercept_p[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$) than in the GWAS of the raw value (mean $\chi^2 = `r signif(dat_load$mean_chi2[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],4)`$, intercept $= `r signif(dat_load$intercept[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],4)`$, SE $= `r signif(dat_load$intercept_se[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],2)`$, $p = `r signif(dat_load$intercept_p[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$). The reason for this strong difference is unclear, though it may relate to the [bimodal, left-skewed distribution of the dilution fraction estimate](http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=30897). The SNP heritability result is reassuringly null in either case (IRNT: $h^2_g = `r signif(dat_load$h2_liability[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$, $p = `r signif(dat_load$h2_p[dat_load$phenotype=="30897_irnt" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$; raw: $h^2_g = `r signif(dat_load$h2_liability[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$, $p = `r signif(dat_load$h2_p[dat_load$phenotype=="30897_raw" & !dat_load$dilute & dat_load$sex=="both_sexes"],3)`$), as would be expected for GWAS of an estimate of sample contamination in the lab. As a result we give limited weight to this outlier in evaluating the choice of IRNT vs. raw versions of the GWAS.
 
 </div>
 
-## **Conclusion**
+## Conclusion
 
 Overall, the results are largely consistent regardless of the choice of IRNT or raw untransformed phenotypes. Since IRNT does appear to provide a marginal boost to the $h^2_g$ results, especially in terms of significance, we choose to treat the IRNT version as the primary analysis for continuous phenotypes. (Results for the raw, untransformed versions will still appear in the complete results file though.)
 
@@ -547,7 +547,7 @@ datatable(fg_pairs,
 
 </div>
 
-## **Conclusion**
+## Conclusion
 
 For these pairs, we drop the phenotype listed in the second column as redundant. This leads to the removal of `r length(unique(rownames(fg_rr)[fg_cor1[,2]]))` [FinnGen](https://www.finngen.fi/en) phenotype codes, leaving `r length(unique(dat_load$phen_stem[!(dat_load$phen_stem %in% fg_pairs[,2])]))` unique phenotype codes among the GWAS.
 
@@ -643,7 +643,7 @@ rm(malonly)
 
 </div>
 
-### **Conclusion** 
+### Conclusion
 
 Take these lists as-is.
 
@@ -770,7 +770,7 @@ datatable(shared_dat,
 
 </div>
 
-### **Conclusion** 
+### Conclusion
 
 Although a handful of these phenotypes are strongly sex-biased, none appear to be fully sex-specific. Therefore we take the `both_sexes` GWAS as the primary result for all phenotypes in this set.
 
@@ -1035,7 +1035,7 @@ dat <- rbind(dat_full[dat_full$keep,],datf_full[datf_full$keep,],datm_full[datm_
 
 ```
 
-### **Conclusion** 
+### Conclusion
 
 For all phenotypes in this set (i.e. having GWAS in `both_sexes` and one sex, but missing for the other sex), if $<97\%$ of the total sample size and of the cases and controls (where applicable) come from a single sex then we treat the `both_sexes` GWAS as the "primary" analysis of that phenotype. If $>97\%$ of the total sample size comes from a single sex then we adopt the sex-specific result. Otherwise if $>97\%$ of cases and/or controls come from a single sex and the phenotype is by definition expect to be sex-specific (e.g. many ICD codes, but excluding job code) then we adopt the sex-specific GWAS as the primary GWAS, otherwise we use the `both_sexes` GWAS. 
 
