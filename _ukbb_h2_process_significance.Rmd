@@ -361,7 +361,7 @@ We observe that the differences between most of these options based on (effectiv
 
 <br>
 
-# Chosen significance thresholds {#sig_thresh}
+# Chosen significance thresholds
 
 <div class="well">
 

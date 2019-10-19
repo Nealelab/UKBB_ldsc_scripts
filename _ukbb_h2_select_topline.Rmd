@@ -94,10 +94,10 @@ datm <- dat_load[dat_load$sex == "male",]
 
 The [UKB Round 2 GWAS](https://github.com/Nealelab/UK_Biobank_GWAS) contains `r nrow(dat_load)` GWAS of `r length(unique(dat_load$phen_stem))` unique phenotype codes (`r length(unique(dat_load$phen_stem[dat_load$source=="phesant"]))` [PHESANT](https://github.com/astheeggeggs/PHESANT) + `r length(unique(dat_load$phen_stem[dat_load$source=="finngen"]))` [FinnGen](https://www.finngen.fi/en) + `r length(unique(dat_load$phen_stem[dat_load$source=="icd10"]))` ICD10 + `r length(unique(dat_load$phen_stem[dat_load$source=="biomarkers"]))` biomarkers + `r length(unique(dat_load$phen_stem[dat_load$source=="covariate"]))` covariates). For many of these phenotypes, however, there are multiple GWAS, due to:
 
-* Consideration of both [inverse rank-normal transformed (IRNT)](#irnt) and raw untransformed versions of `r length(unique(dat_load$phen_stem[dat_load$variable_type == "continuous_irnt"]))` continuous phenotypes
-* Consideration of whether to include the [dilution factor](#dilution) as a covariate for the `r length(unique(dat_load$phen_stem[dat_load$source=="biomarkers"]))` biomarker phenotypes
-* Available [sex-stratified](#sex-spec) results for most phenotypes
-* Redundancy among the [FinnGen codes](#finngen) constructed from ICD diagnoses
+* Consideration of both [inverse rank-normal transformed (IRNT)](#continuous_phenotype_normalization) and raw untransformed versions of `r length(unique(dat_load$phen_stem[dat_load$variable_type == "continuous_irnt"]))` continuous phenotypes
+* Consideration of whether to include the [dilution factor](#biomarker_dilution_factor) as a covariate for the `r length(unique(dat_load$phen_stem[dat_load$source=="biomarkers"]))` biomarker phenotypes
+* Available [sex-stratified](#sex-specific_phenotypes) results for most phenotypes
+* Redundancy among the [FinnGen codes](#redundant_finngen_codes) constructed from ICD diagnoses
 
 Our first task for the LD Score regression analyses, then, is to get a "primary" result for each phenotype.
 
@@ -105,7 +105,7 @@ Our first task for the LD Score regression analyses, then, is to get a "primary"
 
 <br>
 
-# Biomarker dilution factor {#dilution}
+# Biomarker dilution factor
 
 For the biomarker assays, UK Biobank has reported that some samples were unintentionally diluted ([pdf](http://biobank.ctsu.ox.ac.uk/crystal/crystal/docs/biomarker_issues.pdf)) during processing. Although an effort has been made to estimate the dilution fraction and correct assay values accordingly, the estimated dilution fraction has also been reported for potential use in additional modelling. For instance, [other initial analyses of the biomarker data](https://www.biorxiv.org/content/10.1101/660506v1) have opted to include the dilution fraction as a covariate in regression analyses.
 
@@ -277,7 +277,7 @@ dat$keep <- rep(T, nrow(dat))
 dat$notes <- rep("", nrow(dat))
 
 dat$keep[dat$source=="biomarkers" & dat$dilute] <- F
-dat$notes[grep("_raw",dat$phenotype)] <- "drop_bio_dilution"
+dat$notes[dat$source=="biomarkers" & dat$dilute] <- "drop_bio_dilution"
 
 dat_full <- dat
 dat <- dat_full[dat$keep,]
@@ -288,7 +288,7 @@ rm(biodat)
 
 <br>
 
-# Continuous phenotype normalization {#irnt}
+# Continuous phenotype normalization
 
 The Round 1 GWAS rank-normalized (IRNT) all continuous phenotypes. In Round 2, untransformed copies of the continuous phenotypes were also GWASed for the purposes of evaluating whether rank-normalizing was beneficial. Here we compare the raw and IRNT versions of all of the continuous phenotypes from [PHESANT](https://github.com/astheeggeggs/PHESANT) that were GWASed in `both_sexes` (i.e. that aren't sex-specific).
 
@@ -483,8 +483,8 @@ Overall, the results are largely consistent regardless of the choice of IRNT or 
 
 ```{r keep_irnt, echo=FALSE}
 
-dat_full$keep[dat_full$keep & grepl("_raw",dat_full$phenotype)] <- F
 dat_full$notes[dat_full$keep & grepl("_raw",dat_full$phenotype)] <- "drop_cont_raw"
+dat_full$keep[dat_full$keep & grepl("_raw",dat_full$phenotype)] <- F
 
 dat$keep[grepl("_raw",dat$phenotype)] <- F
 dat <- dat[dat$keep,]
@@ -494,7 +494,7 @@ dat <- dat[dat$keep,]
 
 <br>
 
-# Redundant FinnGen codes {#finngen}
+# Redundant FinnGen codes
 
 During review of the GWAS phenotypes, we identified some instances where a [FinnGen](https://www.finngen.fi/en) code corresponds to a phenotype that is identical to another GWASed FinnGen code and in thus redundant. The most common case is pairs with codes `C_*` and `C3_*` with the same name, description,and sample size. For example, both `C_OTHER_SKIN` and `C3_OTHER_SKIN` are phenotypes for "Other malignant neoplasms of skin", and both have 14,402 cases and 346,792 controls. We identify and mark as redundant those phenotypes here.
 
@@ -565,7 +565,7 @@ rm(fg_rr)
 
 <br>
 
-# Sex-specific phenotypes {#sex-spec}
+# Sex-specific phenotypes
 
 UKB includes a number of sex-specific phenotypes, meaning that not all phenotypes have a `both_sexes` version of the analysis. In addition, although some of these are specified by UKB and thus coded as such (e.g. all members of the non-applicable sex are marked as missing), others do not exclude non-applicable sex, for example treating them as controls. The Round 2 GWAS included strong efforts to address phenotypes with this issue, particularly among the [PHESANT](https://github.com/astheeggeggs/PHESANT) phenotypes, but we still have some GWAS where there's a `both_sexes` analysis of a sex-specific phenotype. Therefore the goal here is to verify that we have the appropriate version of each phenotype respecting sex-specificity where applicable.
 

@@ -84,18 +84,18 @@ Elsewhere we've described how [we selected a "primary" $h^2_g$ result](select_to
 
 We document here out evaluation of confidence in each of the LDSR $h^2_g$ results. This is separate from our evaulation of [statistical significance](significance.html) for these results. Here we look at:
 
-* What is the [minimum sample size](#min-n) necessary to have statistical power for LDSR $h^2_g$ estimation?
-* Are there [signs of bias](#neff_bias) in $h^2_g$ estimates as a function of sample size?
-* Are there phenotypes with [unexpectedly large sampling variation](#large-se) for their $h^2_g$ estimate?
-* Are there [phenotyping](#sex-bias) [features](#ordinal) to be aware of in assessing our confidence in interpreting the results?
+* What is the [minimum sample size](#minimum_sample_size) necessary to have statistical power for LDSR $h^2_g$ estimation?
+* Are there [signs of bias](#potential_small_sample_biases) in $h^2_g$ estimates as a function of sample size?
+* Are there phenotypes with [unexpectedly large sampling variation](#unusually_large_standard_errors) for their $h^2_g$ estimate?
+* Are there [phenotyping](#sex-biased_phenotypes) [features](#ordinal_coding_issues) to be aware of in assessing our confidence in interpreting the results?
 
-We conclude with a summary of our [current confidence classifications](#summary).
+We conclude with a summary of our [current confidence classifications](#summary_of_confidence_ratings).
 
 ***
 
 <br>
 
-# Minimum sample size {#min-n}
+# Minimum sample size
 
 After [we've defined a "primary" $h^2_g$ result](select_topline.html) for each of the `r length(unique(dat$phen_stem))` unique phenotypes in the Round 2 GWAS, we know that the sample size (or effective sample size) for many of these phenotypes is quite low. For example, case counts are quite small for most ICD codes and job codes. To avoid unnecessary multiple testing for the significance of the $h^2_g$ results we therefore aim to identify the minimum (effective) sample size required to provide sufficient power to make LDSR analysis viable. [*NB:* We focus first on a bare minimum in terms of power, we'll return to the question of bias later.]
 
@@ -416,7 +416,7 @@ dat <- dat[!dat$isBadPower,]
 
 ***
 
-# Potential small sample biases {#neff-bias}
+# Potential small sample biases
 
 The above set of conditions identifies `r nrow(dat)` phenotypes that avoid redundancy for encoding and sex-specific results and reach a minimum effective sample size ($N_{eff}$) necessary for LDSR analysis to be viable in terms of power. These thresholds may be considered a bare minimum. We now consider instances among these `r nrow(dat)` phenotypes where we may still be pessimistic about the accuracy of the LDSR results. 
 
@@ -663,7 +663,7 @@ The relationship to $a$ may also explain why the attenuation at low $N_{eff}$ is
 
 From the plot of $h^2_g$ by $a$ decile, it appears LDSR $h^2_g$ estimates converge to stabilty in the $N_{eff}=20,000-40,000$ range. This is broadly consistent with the downsampling experiments above, though in some instances those show evidence of slightly slower convergence. Based on the above, we therefore denote our confidence in the LDSR $h^2_g$ results as follows:
 
-* $N_{eff} < 4500$: No confidence (see [minimum sample size requirements](#minimum-sample-size-requirements))
+* $N_{eff} < 4500$: No confidence (see [minimum sample size requirements](#minimum_sample_size))
 * $4500 \leq N_{eff} < 20,000$: Low confidence
 * $20,000 \leq N_{eff} < 40,000$: Medium confidence
 * $N_{eff} \geq 40,000$: High confidence
@@ -713,9 +713,9 @@ dat <- dat[dat$confidence != "low", ]
 
 ***
 
-# Unusually large standard errors {#large-se}
+# Unusually large standard errors
 
-In assessing the minimum necessary sample size [above](#minimum-sample-size-requirements), we noted the relationship between sample size and the SE of the $h^2_g$ estimate. Although we focused on the average SE by sample size, it may also be observed that there are some clear outliers with larger SEs than would be anticipated based on their sample size.
+In assessing the minimum necessary sample size [above](#minimum_sample_size), we noted the relationship between sample size and the SE of the $h^2_g$ estimate. Although we focused on the average SE by sample size, it may also be observed that there are some clear outliers with larger SEs than would be anticipated based on their sample size.
 
 <div class="well">
 
@@ -759,7 +759,7 @@ LDSR is derived assuming a broadly polygenic architecture for each trait. Althou
 
 Although we hope that the reported SEs will accurately capture the instability of estimates for these phenotypes with sparse architectures, we may have lower confidence in these results. We may be particularly concerned about phenotypes where the SE is large and coupled with a low estimated intercept, which could in turn lead to over-estimation of $h^2_g$.
 
-Using the same loess fit as [above](#minimum-sample-size-requirements) to predict the expected SE based on $N_{eff}$, we evaluate the ratio between the observed and expected SE along with the fitted intercept.
+Using the same loess fit as [above](#minimum_sample_size) to predict the expected SE based on $N_{eff}$, we evaluate the ratio between the observed and expected SE along with the fitted intercept.
 
 
 ```{r h2_pred_se_ratio, echo=F}
@@ -855,9 +855,9 @@ dat <- dat[dat$confidence != "low", ]
 
 ***
 
-# Sex-biased phenotypes {#sex-bias}
+# Sex-biased phenotypes
 
-We noted [when selecting primary results for each phenotype](select_topline.html#sex-specific-phenotypes) that although we were designating the both-sex analysis as the primary analysis where possible that we would revisit the question of results for phenotypes with a strong sex bias. We revisit that question here.
+We noted [when selecting primary results for each phenotype](select_topline.html#sex-specific_phenotypes) that although we were designating the both-sex analysis as the primary analysis where possible that we would revisit the question of results for phenotypes with a strong sex bias. We revisit that question here.
 
 <div class="well">
 
@@ -1010,7 +1010,7 @@ We only flag these phenotypes as "medium" confidence (as opposed to "low") since
 
 ***
 
-# Ordinal coding issues {#ordinal}
+# Ordinal coding issues
 
 In reviewing the phenotypes for this GWAS release, it was noted that the automated phenotype processing with [PHESANT](https://github.com/astheeggeggs/PHESANT) used for the GWAS yielded a small number of phenotypes with poor/uninterpretable encodings of UKB participant answers. Specifically, the issue is variables identified as ordinal by PHESANT where the labels for the ordinal levels are non-sequential numeric values and/or do not reflect that natural numeric ordering/spacing of the available response categories. For most of the identified cases this would be fine if the ordinal phenotypes were being analyzed with e.g. ordinal logistic regression as originally intended by [PHESANT](https://github.com/MRCIEU/PHESANT), but since the Neale Lab GWAS uses linear regression for all phenotypes the ordinal coding does impact the current GWAS results.
 
@@ -1179,7 +1179,7 @@ A set of `r length(num_ord)` ordinal phenotypes whose coded response levels may 
 
 ***
 
-# Summary of confidence ratings {#summary}
+# Summary of confidence ratings
 
 In sum, the above process leaves us with:
 
