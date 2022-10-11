@@ -11,12 +11,16 @@
 
 # download of UKB GWAS file manifest
 # https://docs.google.com/spreadsheets/d/1kvPoupSzsSFBNSztMzl04xMoSC3Kcx3CrjVf4yBmESU/edit#gid=178908679
-manif <- readxl::read_excel("../reference/UKBB_GWAS_File_Manifest.xlsx",sheet = "Manifest 201807")
-manif <- manif[grep("gwas",manif$File),]
+# manif <- readxl::read_excel("../reference/UKBB_GWAS_File_Manifest.xlsx",sheet = "Manifest 201807")
+manif <- readxl::read_excel("../reference/UKBB GWAS Imputed v3 - File Manifest Release 20180731.xlsx",sheet = "Manifest 201807")
+manif <- manif[grep("\\.gwas\\.imputed_v3\\.",manif$File),]
 
 # ldsc results file
 h2 <- read.delim("../results/round2_final/ukb31063_h2_all.02Oct2019.tsv.gz",header=T,stringsAsFactors=F,sep='\t')
 h2 <- h2[,c("phenotype","sex","dilute","gwas_file","variable_type","source","description","isNotPrimary","confidence","h2_sig")]
+
+# matching for biomarker gwas files with updated variant order 08/2021
+h2$gwas_file[h2$source=="biomarkers" & !h2$dilute] <- stringr::str_replace(h2$gwas_file[h2$source=="biomarkers" & !h2$dilute], ".tsv.bgz", ".varorder.tsv.bgz")
 
 # outer join on gwas file name
 dat <- merge(h2, manif, by.x="gwas_file", by.y="File", all=TRUE)
@@ -41,6 +45,10 @@ dat$description[dat$hasV2replacement] <- dat$`Phenotype Description`[dat$hasV2re
 # all.equal(dat$`Phenotype Description`[dat$hasV2replacement],dat$description[dat$isV2][match(dat$phenotype[dat$hasV2replacement],dat$phenotype[dat$isV2])])
 dat$source[dat$hasV2replacement] <- dat$source[dat$isV2][match(dat$phenotype[dat$hasV2replacement],dat$phenotype[dat$isV2])]
 dat$variable_type[dat$hasV2replacement] <- dat$variable_type[dat$isV2][match(dat$phenotype[dat$hasV2replacement],dat$phenotype[dat$isV2])]
+
+# fix icd showcase links
+dat$`UK Biobank Data Showcase Link`[dat$source=="icd10"] <- "http://biobank.ctsu.ox.ac.uk/crystal/field.cgi?id=41202"
+dat$`UK Biobank Data Showcase Link`[dat$source=="finngen"] <- "N/A"
 
 
 # column cleanup
@@ -79,7 +87,7 @@ dat2 <- merge(dat,box,by="mergeid",all=TRUE)
 # column cleanup
 dat2$is_primary_gwas <- !dat2$isNotPrimary
 names(dat2)[names(dat2)=="Dropbox"] <- "ldsc_sumstat_dropbox"
-names(dat2)[names(dat2)=="Dropbox File"] <- "gwas_dropbox"
+names(dat2)[names(dat2)=="AWS File"] <- "gwas_aws"
 names(dat2)[names(dat2)=="wget command"] <- "gwas_wget"
 names(dat2)[names(dat2)=="File"] <- "ldsc_sumstat_file"
 dat2$ldsc_sumstat_wget <- paste0("wget ",dat2$ldsc_sumstat_dropbox," -O ",dat2$ldsc_sumstat_file)
@@ -92,10 +100,10 @@ dat2$is_primary_gwas[dat2$has_v2_replacement] <- FALSE
 dat2$source[dat2$has_v2_replacement] <- "phesant"
 names(dat2)[names(dat2)=="confidence"] <- "ldsc_confidence"
 names(dat2)[names(dat2)=="h2_sig"] <- "ldsc_h2_significance"
-dat2 <- dat2[,c("phenotype","description","showcase","source","sex","variable_type","is_v2","has_v2_replacement","dilute","ldsc_sumstat_file","ldsc_sumstat_dropbox","ldsc_sumstat_wget","gwas_file","gwas_dropbox","gwas_wget","is_primary_gwas","ldsc_confidence","ldsc_h2_significance")]
+dat2 <- dat2[,c("phenotype","description","showcase","source","sex","variable_type","is_v2","has_v2_replacement","dilute","ldsc_sumstat_file","ldsc_sumstat_dropbox","ldsc_sumstat_wget","gwas_file","gwas_aws","gwas_wget","is_primary_gwas","ldsc_confidence","ldsc_h2_significance")]
 
 # save
-con <- gzfile("../results/round2_final/ukb31063_ldsc_sumstat_manifest.tsv.gz","w")
+con <- gzfile("../results/round2_final/ukb31063_ldsc_sumstat_manifest_aws_sep2022.tsv.gz","w")
 write.table(dat2,file=con,col.names=T,row.names=F,sep='\t',quote=F)
 close(con)
 
